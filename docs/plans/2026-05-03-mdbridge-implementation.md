@@ -10,6 +10,26 @@
 
 ---
 
+## TDD Process
+
+Every task with logic MUST follow this cycle:
+
+1. **Write the failing test** — define expected behavior first
+2. **Run the test** — confirm it fails for the right reason (function not found, assertion failed)
+3. **Write minimal implementation** — just enough to pass the test
+4. **Run the test** — confirm it passes
+5. **Commit** — atomic commit with test + implementation together
+
+**Rules:**
+- Never write implementation before the test
+- Each test should test ONE behavior
+- Test names describe the behavior, not the implementation
+- For Rust: use `#[cfg(test)] mod tests {}` inline modules
+- For TypeScript: co-locate test files as `*.test.tsx` next to the component
+- Frontend tests use Vitest + @testing-library/react
+
+---
+
 ## Chunk 1: Project Setup
 
 ### Task 1: Initialize Tauri Project
@@ -279,6 +299,114 @@ Expected: No errors.
 ```bash
 git add -A
 git commit -m "feat: set up project module structure"
+```
+
+---
+
+### Task 2.5: Set Up Test Infrastructure
+
+**Files:**
+- Create: `src-tauri/src/test_utils.rs`
+- Create: `vitest.config.ts`
+- Create: `src/test/setup.ts`
+- Modify: `package.json` (add test scripts)
+
+- [ ] **Step 1: Create Rust test utilities**
+
+```rust
+// src-tauri/src/test_utils.rs
+use comrak::nodes::AstNode;
+use comrak::{Arena, Options, parse_document};
+
+/// Parse markdown and return the AST root for testing
+pub fn parse_test_md<'a>(arena: &'a Arena<AstNode<'a>>, md: &str) -> &'a AstNode<'a> {
+    let options = Options::default();
+    parse_document(arena, md, &options)
+}
+
+/// Collect all node values of a specific type from an AST
+pub fn collect_node_values(node: &AstNode, values: &mut Vec<String>) {
+    let data = node.data.borrow();
+    match &data.value {
+        comrak::nodes::NodeValue::Text(text) => {
+            values.push(String::from_utf8_lossy(text).to_string());
+        }
+        _ => {}
+    }
+    for child in node.children() {
+        collect_node_values(child, values);
+    }
+}
+```
+
+- [ ] **Step 2: Configure Vitest for frontend tests**
+
+```bash
+npm install -D vitest @testing-library/react @testing-library/jest-dom jsdom
+```
+
+```ts
+// vitest.config.ts
+import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    include: ['src/**/*.test.{ts,tsx}'],
+  },
+});
+```
+
+```ts
+// src/test/setup.ts
+import '@testing-library/jest-dom';
+```
+
+- [ ] **Step 3: Add test scripts to package.json**
+
+```json
+{
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml"
+  }
+}
+```
+
+- [ ] **Step 4: Write a smoke test to verify setup**
+
+```tsx
+// src/App.test.tsx
+import { render, screen } from '@testing-library/react';
+import { describe, it, expect } from 'vitest';
+import App from './App';
+
+describe('App', () => {
+  it('renders the app name', () => {
+    render(<App />);
+    expect(screen.getByText('MDBridge')).toBeInTheDocument();
+  });
+});
+```
+
+- [ ] **Step 5: Run tests to verify setup**
+
+```bash
+npm test
+cargo test --manifest-path src-tauri/Cargo.toml
+```
+
+Expected: Both Rust and frontend tests pass.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add -A
+git commit -m "feat: set up test infrastructure (Vitest + Rust test utils)"
 ```
 
 ---
@@ -3008,5 +3136,340 @@ Expected: Build succeeds, produces .dmg (Mac) or .msi (Windows).
 
 ```bash
 git add -A
-git commit -m "feat: MdBridge MVP complete"
+git commit -m "feat: MDBridge MVP complete"
+```
+
+---
+
+## Chunk 6: Engineering Configuration
+
+### Task 19: Set Up GitHub Actions CI
+
+**Files:**
+- Create: `.github/workflows/ci.yml`
+
+- [ ] **Step 1: Create CI workflow**
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # Frontend tests
+  frontend-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+  # Rust tests
+  rust-test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
+      - run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+
+  # Lint
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+```
+
+- [ ] **Step 2: Verify CI passes locally**
+
+```bash
+npm test
+cargo test --manifest-path src-tauri/Cargo.toml
+cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+```
+
+Expected: All checks pass.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add .github/workflows/ci.yml
+git commit -m "ci: add GitHub Actions CI workflow"
+```
+
+---
+
+### Task 20: Set Up Release Workflow
+
+**Files:**
+- Create: `.github/workflows/release.yml`
+
+- [ ] **Step 1: Create release workflow**
+
+```yaml
+# .github/workflows/release.yml
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target: universal-apple-darwin
+          - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: v__VERSION__
+          releaseName: MDBridge v__VERSION__
+          releaseBody: 'See the assets below to download.'
+          releaseDraft: true
+          prerelease: false
+```
+
+- [ ] **Step 2: Generate Tauri signing keypair**
+
+```bash
+npx tauri signer generate -w ~/.tauri/mdbridge.key
+```
+
+Save the output:
+- **Private key** → GitHub Secret `TAURI_SIGNING_PRIVATE_KEY`
+- **Password** → GitHub Secret `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
+
+- [ ] **Step 3: Configure GitHub Secrets**
+
+In the GitHub repo settings, add:
+- `TAURI_SIGNING_PRIVATE_KEY` — the private key from step 2
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — the password from step 2
+
+- [ ] **Step 4: Update tauri.conf.json with pubkey**
+
+```json
+"plugins": {
+  "updater": {
+    "pubkey": "<PUBLIC_KEY_FROM_STEP_2>",
+    "endpoints": [
+      "https://github.com/<OWNER>/MDBridge/releases/latest/download/latest.json"
+    ]
+  }
+}
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add .github/workflows/release.yml
+git commit -m "ci: add release workflow with Tauri auto-update signing"
+```
+
+---
+
+### Task 21: Add Code Quality Tools
+
+**Files:**
+- Create: `.eslintrc.cjs`
+- Create: `rustfmt.toml`
+- Create: `clippy.toml`
+
+- [ ] **Step 1: Configure ESLint for frontend**
+
+```bash
+npm install -D eslint @typescript-eslint/eslint-plugin @typescript-eslint/parser eslint-plugin-react-hooks
+```
+
+```js
+// .eslintrc.cjs
+module.exports = {
+  root: true,
+  env: { browser: true, es2020: true },
+  extends: [
+    'eslint:recommended',
+    'plugin:@typescript-eslint/recommended',
+    'plugin:react-hooks/recommended',
+  ],
+  parser: '@typescript-eslint/parser',
+  parserOptions: {
+    ecmaVersion: 'latest',
+    sourceType: 'module',
+  },
+  rules: {
+    '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+  },
+};
+```
+
+- [ ] **Step 2: Configure Rust formatting**
+
+```toml
+# rustfmt.toml
+edition = "2021"
+max_width = 100
+```
+
+- [ ] **Step 3: Configure Clippy**
+
+```toml
+# clippy.toml
+msrv = "1.70"
+```
+
+- [ ] **Step 4: Add lint scripts to package.json**
+
+```json
+{
+  "scripts": {
+    "lint": "eslint src --ext .ts,.tsx && cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings",
+    "format": "cargo fmt --manifest-path src-tauri/Cargo.toml"
+  }
+}
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add -A
+git commit -m "chore: add ESLint, rustfmt, clippy configuration"
+```
+
+---
+
+### Task 22: Add PR Template and Contributing Guide
+
+**Files:**
+- Create: `.github/pull_request_template.md`
+- Create: `CONTRIBUTING.md`
+
+- [ ] **Step 1: Create PR template**
+
+```markdown
+<!-- .github/pull_request_template.md -->
+## Summary
+
+<!-- Brief description of changes -->
+
+## Changes
+
+- 
+
+## Testing
+
+- [ ] `npm test` passes
+- [ ] `cargo test --manifest-path src-tauri/Cargo.toml` passes
+- [ ] Manual testing completed
+
+## Screenshots (if UI changes)
+
+<!-- Add screenshots here -->
+```
+
+- [ ] **Step 2: Create contributing guide**
+
+```markdown
+<!-- CONTRIBUTING.md -->
+# Contributing to MDBridge
+
+## Development Setup
+
+1. Clone the repo
+2. `npm install`
+3. `npm run tauri dev`
+
+## Running Tests
+
+```bash
+# Frontend tests
+npm test
+
+# Rust tests
+cargo test --manifest-path src-tauri/Cargo.toml
+
+# Lint
+npm run lint
+```
+
+## Code Style
+
+- TypeScript: ESLint rules
+- Rust: rustfmt + clippy
+- Run `npm run lint` before committing
+
+## Commit Convention
+
+Use conventional commits:
+- `feat:` new feature
+- `fix:` bug fix
+- `docs:` documentation
+- `chore:` maintenance
+- `test:` adding tests
+- `ci:` CI/CD changes
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add .github/pull_request_template.md CONTRIBUTING.md
+git commit -m "docs: add PR template and contributing guide"
 ```
