@@ -1,8 +1,8 @@
-# MdBridge 设计文档
+# MDBridge 设计文档
 
 ## 概述
 
-MdBridge 是一个跨平台（Mac + Windows）桌面 Markdown 编辑器，核心功能是将 MD 文档转换为适配多个媒体平台的格式，通过剪贴板复制供用户粘贴发布。
+MDBridge 是一个跨平台（Mac + Windows）桌面 Markdown 编辑器，核心功能是将 MD 文档转换为适配多个媒体平台的格式，通过剪贴板复制供用户粘贴发布。
 
 **不涉及自动发布**，仅做格式转换 + 复制到剪贴板。
 
@@ -51,7 +51,7 @@ MdBridge 是一个跨平台（Mac + Windows）桌面 Markdown 编辑器，核心
 ## 项目结构
 
 ```
-MdBridge/
+MDBridge/
 ├── src-tauri/
 │   ├── src/
 │   │   ├── main.rs
@@ -164,7 +164,7 @@ trait PlatformConverter {
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│  MdBridge   [文件 ▾][发布 ▾]           [✏️][↔️][👁] ─ □ ×│
+│  MDBridge   [文件 ▾][发布 ▾]           [✏️][↔️][👁] ─ □ ×│
 ```
 
 - 左侧：应用名、文件菜单、发布菜单

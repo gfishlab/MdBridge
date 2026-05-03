@@ -1,4 +1,4 @@
-# MdBridge Implementation Plan
+# MDBridge Implementation Plan
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -19,19 +19,24 @@
 - Create: `tsconfig.json`
 - Create: `vite.config.ts`
 - Create: `src-tauri/Cargo.toml`
+- Create: `src-tauri/build.rs`
 - Create: `src-tauri/tauri.conf.json`
 - Create: `src-tauri/src/main.rs`
 - Create: `src-tauri/src/lib.rs`
 - Create: `src/main.tsx`
 - Create: `src/App.tsx`
 - Create: `index.html`
+- Create: `.gitignore`
 
 - [ ] **Step 1: Initialize Tauri 2.x project with React template**
 
+Run from the MDBridge project root directory:
+
 ```bash
-npm create tauri-app@latest mddesign -- --template react-ts
-cd mddesign
+npm create tauri-app@latest . -- --template react-ts
 ```
+
+> Note: This scaffolds Tauri into the current directory. If the directory is not empty, the CLI may prompt to confirm. Use `.` as the project name to scaffold in-place.
 
 - [ ] **Step 2: Install frontend dependencies**
 
@@ -44,13 +49,14 @@ npm install -D @types/react @types/react-dom typescript vite @vitejs/plugin-reac
 
 ```toml
 [package]
-name = "mddesign"
+name = "mdbridge"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-updater = "2"
+tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 comrak = "0.28"
@@ -60,6 +66,7 @@ tokio = { version = "1", features = ["full"] }
 sha2 = "0.10"
 dirs = "5"
 image = "0.25"
+base64 = "0.22"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -67,11 +74,13 @@ tauri-build = { version = "2", features = [] }
 
 - [ ] **Step 4: Configure tauri.conf.json**
 
+> Note: The `pubkey` and `endpoints` for the updater plugin are left empty for now. Before publishing, generate a keypair with `tauri signer generate` and configure the update endpoint (GitHub Releases or self-hosted). See [Tauri Updater docs](https://v2.tauri.app/plugin/updater/).
+
 ```json
 {
-  "productName": "MdBridge",
+  "productName": "MDBridge",
   "version": "0.1.0",
-  "identifier": "com.mddesign.app",
+  "identifier": "com.mdbridge.app",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
@@ -81,7 +90,7 @@ tauri-build = { version = "2", features = [] }
   "app": {
     "windows": [
       {
-        "title": "MdBridge",
+        "title": "MDBridge",
         "width": 1200,
         "height": 800,
         "resizable": true,
@@ -101,7 +110,46 @@ tauri-build = { version = "2", features = [] }
 }
 ```
 
-- [ ] **Step 5: Verify project compiles and runs**
+- [ ] **Step 5: Create build.rs**
+
+```rust
+// src-tauri/build.rs
+fn main() {
+    tauri_build::build()
+}
+```
+
+- [ ] **Step 6: Create .gitignore**
+
+```gitignore
+node_modules/
+dist/
+src-tauri/target/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+src-tauri/gen/
+.env
+.env.local
+```
+
+- [ ] **Step 7: Add tray icon resource**
+
+Place a `tray-icon.png` (32x32 or 64x64) in `src-tauri/icons/`. This is required for the system tray. Use any PNG icon for now; replace with the final icon later.
+
+Update `tauri.conf.json` to reference it:
+
+```json
+"app": {
+  "trayIcon": {
+    "iconPath": "icons/tray-icon.png",
+    "iconAsTemplate": true
+  }
+}
+```
+
+- [ ] **Step 8: Verify project compiles and runs**
 
 ```bash
 npm run tauri dev
@@ -109,10 +157,9 @@ npm run tauri dev
 
 Expected: Window opens showing empty React app.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git init
 git add -A
 git commit -m "feat: initialize Tauri 2.x + React 18 project"
 ```
@@ -205,7 +252,7 @@ pub fn run() {
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    mddesign_lib::run();
+    mdbridge_lib::run();
 }
 ```
 
@@ -1158,7 +1205,7 @@ impl ImageCache {
     pub fn new(max_size: Option<u64>) -> Self {
         let cache_dir = dirs::cache_dir()
             .unwrap_or_else(|| PathBuf::from("/tmp"))
-            .join("mddesign")
+            .join("mdbridge")
             .join("images");
         fs::create_dir_all(&cache_dir).unwrap();
 
@@ -1421,7 +1468,7 @@ impl AppConfig {
 fn config_path() -> PathBuf {
     dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("mddesign")
+        .join("mdbridge")
         .join("config.json")
 }
 ```
@@ -1686,14 +1733,7 @@ pub fn run() {
 }
 ```
 
-- [ ] **Step 3: Add base64 dependency to Cargo.toml**
-
-```toml
-# Add to [dependencies]
-base64 = "0.22"
-```
-
-- [ ] **Step 4: Verify it compiles**
+- [ ] **Step 3: Verify it compiles**
 
 ```bash
 cargo check --manifest-path src-tauri/Cargo.toml
@@ -1701,7 +1741,7 @@ cargo check --manifest-path src-tauri/Cargo.toml
 
 Expected: No errors.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add src-tauri/src/commands/mod.rs src-tauri/src/lib.rs src-tauri/Cargo.toml
