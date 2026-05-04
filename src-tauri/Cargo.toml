@@ -17,6 +17,7 @@ sha2 = "0.10"
 dirs = "5"
 image = "0.25"
 base64 = "0.22"
+png = "0.17"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
