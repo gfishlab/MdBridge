@@ -1,17 +1,19 @@
 import { useState } from 'react';
 import { Editor } from './components/Editor';
+import { PlatformBar } from './components/PlatformBar';
 import './App.css';
 
 function App() {
   const [markdown, setMarkdown] = useState('# Hello MDBridge\n\nStart writing...');
   const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('split');
+  const [statusMessage, setStatusMessage] = useState('');
 
   return (
     <div className="app">
       <header className="toolbar">
         <span className="app-name">MDBridge</span>
         <div className="toolbar-center">
-          {/* File and Publish menus will go here */}
+          <PlatformBar markdown={markdown} onStatusChange={setStatusMessage} />
         </div>
         <div className="view-toggle">
           <button
@@ -35,7 +37,7 @@ function App() {
         <Editor value={markdown} onChange={setMarkdown} viewMode={viewMode} />
       </main>
       <footer className="status-bar">
-        <span className="status-message"></span>
+        <span className="status-message">{statusMessage}</span>
       </footer>
     </div>
   );
