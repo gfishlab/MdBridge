@@ -20,6 +20,13 @@
 - [x] Task 12: 前端编辑器组件（@uiw/react-md-editor 集成）
 - [x] Task 13: 前端平台栏 + 复制流程
 - [x] Task 14: 文件管理（单文件 + 文件夹 + 文件树）
+- [x] Task 15: 系统托盘（关闭窗口最小化到托盘）
+- [x] Task 16: 自动更新（tauri-plugin-updater）
+- [x] Task 17: 设置页面
+- [x] Task 19: GitHub Actions CI
+- [x] Task 20: Release Workflow
+- [x] Task 21: Code Quality (ESLint, rustfmt, clippy)
+- [x] Task 22: PR Template + Contributing Guide
 
 ## 测试状态
 
@@ -27,12 +34,4 @@
 - Frontend: 1 test passing
 - 分支: feat/mdbridge-mvp
 
-## 待办
-
-- [ ] Task 15: 系统托盘（关闭窗口最小化到托盘）
-- [ ] Task 13: 前端平台栏 + 复制流程
-- [ ] Task 14: 文件管理（单文件 + 文件夹 + 文件树）
-- [ ] Task 15: 系统托盘（关闭窗口最小化到托盘）
-- [ ] Task 16: 自动更新（tauri-plugin-updater）
-- [ ] Task 17: 设置页面
-- [ ] Task 19-22: CI/CD、发布流程、代码质量、PR 模板
+## MVP 状态: 全部完成
