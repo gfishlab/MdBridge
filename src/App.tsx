@@ -4,6 +4,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { Editor } from './components/Editor';
 import { PlatformBar } from './components/PlatformBar';
 import { FileTree } from './components/FileTree';
+import { UpdateDialog } from './components/UpdateDialog';
 import './App.css';
 
 function App() {
@@ -138,6 +139,7 @@ function App() {
         <span className="status-message">{statusMessage}</span>
         {currentFile && <span className="file-path">{currentFile}</span>}
       </footer>
+      <UpdateDialog />
     </div>
   );
 }

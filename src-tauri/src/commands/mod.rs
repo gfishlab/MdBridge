@@ -3,11 +3,12 @@ use crate::config::AppConfig;
 use crate::converter::ast::{extract_image_urls, parse_markdown};
 use crate::converter::platforms;
 use crate::image_cache::ImageCache;
+use crate::updater;
 use comrak::Arena;
 use serde::Serialize;
 use std::fs;
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{State, AppHandle};
 
 pub struct AppState {
     pub config: Mutex<AppConfig>,
@@ -178,6 +179,16 @@ pub fn update_config(updates: serde_json::Value, state: State<'_, AppState>) -> 
 pub fn clear_image_cache(state: State<'_, AppState>) -> Result<(), String> {
     let cache = state.image_cache.lock().unwrap();
     cache.clear()
+}
+
+#[tauri::command]
+pub async fn check_for_updates(app: AppHandle) -> Result<bool, String> {
+    updater::check_for_updates(app).await
+}
+
+#[tauri::command]
+pub async fn install_update(app: AppHandle) -> Result<(), String> {
+    updater::install_update(app).await
 }
 
 fn base64_encode(data: &[u8]) -> String {
