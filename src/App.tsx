@@ -5,6 +5,7 @@ import { Editor } from './components/Editor';
 import { PlatformBar } from './components/PlatformBar';
 import { FileTree } from './components/FileTree';
 import { UpdateDialog } from './components/UpdateDialog';
+import { Settings } from './components/Settings';
 import './App.css';
 
 function App() {
@@ -15,6 +16,7 @@ function App() {
   const [folderPath, setFolderPath] = useState('');
   const [showFileTree, setShowFileTree] = useState(false);
   const [showFileMenu, setShowFileMenu] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const fileMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -121,6 +123,10 @@ function App() {
             onClick={() => setViewMode('preview')}
             title="预览模式"
           >👁</button>
+          <button
+            onClick={() => setShowSettings(true)}
+            title="设置"
+          >⚙️</button>
         </div>
       </header>
       <div className="main-content">
@@ -140,6 +146,7 @@ function App() {
         {currentFile && <span className="file-path">{currentFile}</span>}
       </footer>
       <UpdateDialog />
+      {showSettings && <Settings onClose={() => setShowSettings(false)} />}
     </div>
   );
 }
