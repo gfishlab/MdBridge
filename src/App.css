@@ -134,3 +134,87 @@ html, body, #root {
 .platform-item:hover {
   background: #f0f0f0;
 }
+
+.main-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.file-tree {
+  width: 240px;
+  border-right: 1px solid #e0e0e0;
+  overflow-y: auto;
+  background: #fafafa;
+}
+
+.tree-item {
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree-item:hover {
+  background: #e8e8e8;
+}
+
+.tree-item.active {
+  background: #d0e8ff;
+}
+
+.tree-item.dir {
+  font-weight: 500;
+}
+
+.file-menu-container {
+  position: relative;
+}
+
+.file-btn {
+  background: #f0f0f0;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 16px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.file-btn:hover {
+  background: #e0e0e0;
+}
+
+.file-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  z-index: 100;
+  min-width: 140px;
+}
+
+.file-menu button {
+  display: block;
+  width: 100%;
+  padding: 8px 16px;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.file-menu button:hover {
+  background: #f0f0f0;
+}
+
+.file-path {
+  margin-left: 16px;
+  color: #999;
+}
