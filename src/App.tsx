@@ -1,9 +1,10 @@
-import { useState } from "react";
-import "./App.css";
+import { useState } from 'react';
+import { Editor } from './components/Editor';
+import './App.css';
 
 function App() {
-  const [markdown, setMarkdown] = useState("# Hello MDBridge\n\nStart writing...");
-  const [viewMode, setViewMode] = useState<"edit" | "preview" | "split">("split");
+  const [markdown, setMarkdown] = useState('# Hello MDBridge\n\nStart writing...');
+  const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('split');
 
   return (
     <div className="app">
@@ -14,37 +15,24 @@ function App() {
         </div>
         <div className="view-toggle">
           <button
-            className={viewMode === "edit" ? "active" : ""}
-            onClick={() => setViewMode("edit")}
+            className={viewMode === 'edit' ? 'active' : ''}
+            onClick={() => setViewMode('edit')}
             title="编辑模式"
-          >
-            ✏️
-          </button>
+          >✏️</button>
           <button
-            className={viewMode === "split" ? "active" : ""}
-            onClick={() => setViewMode("split")}
+            className={viewMode === 'split' ? 'active' : ''}
+            onClick={() => setViewMode('split')}
             title="并排模式"
-          >
-            ↔️
-          </button>
+          >↔️</button>
           <button
-            className={viewMode === "preview" ? "active" : ""}
-            onClick={() => setViewMode("preview")}
+            className={viewMode === 'preview' ? 'active' : ''}
+            onClick={() => setViewMode('preview')}
             title="预览模式"
-          >
-            👁
-          </button>
+          >👁</button>
         </div>
       </header>
       <main className="content">
-        <div className="editor-container" data-color-mode="light">
-          <textarea
-            className="editor-textarea"
-            value={markdown}
-            onChange={(e) => setMarkdown(e.target.value)}
-            placeholder="Write your Markdown here..."
-          />
-        </div>
+        <Editor value={markdown} onChange={setMarkdown} viewMode={viewMode} />
       </main>
       <footer className="status-bar">
         <span className="status-message"></span>
