@@ -6,9 +6,10 @@ MDBridge — 跨平台桌面 Markdown 编辑器，支持将 MD 文档转换为�
 
 ## 当前状态
 
-- 设计文档已完成：`docs/plans/2026-05-03-mddesign-design.md`
-- 实现计划已完成：`docs/superpowers/plans/2026-05-03-mdbridge-implementation.md`
-- 代码尚未开始编写
+- 分支: `feat/mdbridge-mvp`（已推送到 GitHub）
+- Chunk 1-3 已完成（Task 1-10），49 个 Rust 测试通过
+- 转换引擎、图片缓存、剪贴板、配置模块均已实现
+- 下一步: Task 11（Tauri Commands）开始 Chunk 4
 
 ## 技术栈
 
