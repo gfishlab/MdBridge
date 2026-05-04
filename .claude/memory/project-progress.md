@@ -16,6 +16,7 @@
 - [x] Task 8: 图片磁盘缓存（LRU 淘汰 + SHA256 哈希）
 - [x] Task 9: 剪贴板管理器（纯文本、HTML、富文本）
 - [x] Task 10: 配置模块（AppConfig 加载/保存）
+- [x] Task 11: Tauri Commands（连接后端所有功能）
 
 ## 测试状态
 
@@ -25,7 +26,6 @@
 
 ## 待办
 
-- [ ] Task 11: Tauri Commands（连接后端所有功能）
 - [ ] Task 12: 前端编辑器组件（@uiw/react-md-editor 集成）
 - [ ] Task 13: 前端平台栏 + 复制流程
 - [ ] Task 14: 文件管理（单文件 + 文件夹 + 文件树）
