@@ -12,7 +12,7 @@ impl PlatformConverter for JuejinConverter {
         true
     }
 
-    fn convert(&self, _ast: &AstNode) -> String {
+    fn convert<'a>(&self, _ast: &'a AstNode<'a>) -> String {
         // TODO: Implement Juejin-specific conversion
         String::new()
     }

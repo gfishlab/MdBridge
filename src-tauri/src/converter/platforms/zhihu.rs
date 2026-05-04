@@ -12,7 +12,7 @@ impl PlatformConverter for ZhihuConverter {
         true
     }
 
-    fn convert(&self, _ast: &AstNode) -> String {
+    fn convert<'a>(&self, _ast: &'a AstNode<'a>) -> String {
         // TODO: Implement Zhihu-specific conversion
         String::new()
     }

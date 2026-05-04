@@ -12,7 +12,7 @@ impl PlatformConverter for DouyinConverter {
         false
     }
 
-    fn convert(&self, _ast: &AstNode) -> String {
+    fn convert<'a>(&self, _ast: &'a AstNode<'a>) -> String {
         // TODO: Implement Douyin/Xiaohongshu-specific conversion
         String::new()
     }

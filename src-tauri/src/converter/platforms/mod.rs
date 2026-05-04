@@ -11,7 +11,7 @@ pub mod juejin;
 pub trait PlatformConverter {
     fn name(&self) -> &str;
     fn supports_external_images(&self) -> bool;
-    fn convert(&self, ast: &AstNode) -> String;
+    fn convert<'a>(&self, ast: &'a AstNode<'a>) -> String;
 }
 
 pub fn get_all_converters() -> Vec<Box<dyn PlatformConverter>> {
