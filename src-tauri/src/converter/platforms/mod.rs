@@ -40,7 +40,7 @@ mod tests {
     fn test_converter_trait() {
         let converter = wechat::WechatConverter;
         assert_eq!(converter.name(), "wechat");
-        assert!(!converter.supports_external_images());
+        assert!(converter.supports_external_images());
     }
 
     #[test]
