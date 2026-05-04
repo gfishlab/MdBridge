@@ -10,7 +10,6 @@ import './App.css';
 
 function App() {
   const [markdown, setMarkdown] = useState('# Hello MDBridge\n\nStart writing...');
-  const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('split');
   const [statusMessage, setStatusMessage] = useState('');
   const [currentFile, setCurrentFile] = useState('');
   const [folderPath, setFolderPath] = useState('');
@@ -88,14 +87,16 @@ function App() {
   return (
     <div className="app">
       <header className="toolbar">
-        <span className="app-name">MDBridge</span>
-        <div className="toolbar-center">
+        <div className="toolbar-left">
           <div className="file-menu-container" ref={fileMenuRef}>
             <button
-              className="file-btn"
+              className="menu-btn"
               onClick={() => setShowFileMenu(!showFileMenu)}
             >
-              文件 ▾
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+              </svg>
+              文件
             </button>
             {showFileMenu && (
               <div className="file-menu">
@@ -106,27 +107,16 @@ function App() {
             )}
           </div>
           <PlatformBar markdown={markdown} onStatusChange={setStatusMessage} />
-        </div>
-        <div className="view-toggle">
           <button
-            className={viewMode === 'edit' ? 'active' : ''}
-            onClick={() => setViewMode('edit')}
-            title="编辑模式"
-          >✏️</button>
-          <button
-            className={viewMode === 'split' ? 'active' : ''}
-            onClick={() => setViewMode('split')}
-            title="并排模式"
-          >↔️</button>
-          <button
-            className={viewMode === 'preview' ? 'active' : ''}
-            onClick={() => setViewMode('preview')}
-            title="预览模式"
-          >👁</button>
-          <button
+            className="menu-btn"
             onClick={() => setShowSettings(true)}
-            title="设置"
-          >⚙️</button>
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+            设置
+          </button>
         </div>
       </header>
       <div className="main-content">
@@ -138,7 +128,7 @@ function App() {
           />
         )}
         <main className="content">
-          <Editor value={markdown} onChange={setMarkdown} viewMode={viewMode} />
+          <Editor value={markdown} onChange={setMarkdown} />
         </main>
       </div>
       <footer className="status-bar">

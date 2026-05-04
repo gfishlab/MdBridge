@@ -2,14 +2,19 @@ pub mod menu;
 
 use tauri::{
     AppHandle, Manager,
+    image::Image as TauriImage,
     tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState},
 };
 
 pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let tray_menu = menu::build_tray_menu(app)?;
 
+    // 使用默认窗口图标
+    let icon = app.default_window_icon().unwrap().clone();
+
     let _tray = TrayIconBuilder::new()
-        .icon(app.default_window_icon().unwrap().clone())
+        .icon(icon)
+        .icon_as_template(true)  // macOS Template 模式
         .menu(&tray_menu)
         .on_menu_event(move |app, event| {
             menu::handle_tray_menu_event(app, event);
