@@ -20,7 +20,7 @@
 - [x] Task 12: 前端编辑器组件（@uiw/react-md-editor 集成）
 - [x] Task 13: 前端平台栏 + 复制流程
 - [x] Task 14: 文件管理（单文件 + 文件夹 + 文件树）
-- [x] Task 15: 系统托盘（关闭窗口最小化到托盘）
+- [x] Task 15: 系统托盘（关闭窗口最小化到托盘，蓝色背景白色M图标）
 - [x] Task 16: 自动更新（tauri-plugin-updater）
 - [x] Task 17: 设置页面
 - [x] Task 19: GitHub Actions CI
@@ -28,10 +28,24 @@
 - [x] Task 21: Code Quality (ESLint, rustfmt, clippy)
 - [x] Task 22: PR Template + Contributing Guide
 
+## UI 优化（2026-05-04）
+
+- [x] 去掉顶部 MDBridge 标题文字
+- [x] 文件、发布、设置菜单移到左边左对齐，添加 SVG 图标
+- [x] 去掉右上角编辑/预览/分屏切换按钮（编辑器自带）
+- [x] 编辑器默认使用分屏模式
+- [x] 设置按钮从右上角移到工具栏菜单区域
+
 ## 测试状态
 
 - Rust: 49 tests passing
 - Frontend: 1 test passing
 - 分支: feat/mdbridge-mvp
+- 最新提交: ed94c7c (fix: 修复托盘图标显示问题)
 
 ## MVP 状态: 全部完成
+
+## 已知问题
+
+- git push 需要使用 SSH（已从 HTTPS 切换到 SSH）
+- 前端构建有 chunk size 警告（可考虑代码分割优化）
