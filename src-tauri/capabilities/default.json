@@ -1,0 +1,13 @@
+{
+  "identifier": "default",
+  "description": "Default capabilities for MDBridge",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "core:window:default",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
+    "core:window:allow-close"
+  ]
+}

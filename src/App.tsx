@@ -6,6 +6,7 @@ import { PlatformBar } from './components/PlatformBar';
 import { FileTree } from './components/FileTree';
 import { UpdateDialog } from './components/UpdateDialog';
 import { Settings } from './components/Settings';
+import { Help } from './components/Help/Help';
 import './App.css';
 
 function App() {
@@ -16,6 +17,7 @@ function App() {
   const [showFileTree, setShowFileTree] = useState(false);
   const [showFileMenu, setShowFileMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const fileMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -117,6 +119,17 @@ function App() {
             </svg>
             设置
           </button>
+          <button
+            className="menu-btn"
+            onClick={() => setShowHelp(true)}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            帮助
+          </button>
         </div>
       </header>
       <div className="main-content">
@@ -137,6 +150,7 @@ function App() {
       </footer>
       <UpdateDialog />
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
+      {showHelp && <Help onClose={() => setShowHelp(false)} />}
     </div>
   );
 }
