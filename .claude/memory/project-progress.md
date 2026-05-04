@@ -36,12 +36,18 @@
 - [x] 编辑器默认使用分屏模式
 - [x] 设置按钮从右上角移到工具栏菜单区域
 
+## Bug 修复 & 功能增强（2026-05-04）
+
+- [x] 修复文件对话框无响应（添加 Tauri capabilities/default.json 权限配置）
+- [x] 新增帮助页面（Markdown 语法速查 + 快捷键，区分 macOS/Windows）
+- [x] 标题快捷键一级到六级完整展示
+
 ## 测试状态
 
 - Rust: 49 tests passing
 - Frontend: 1 test passing
 - 分支: feat/mdbridge-mvp
-- 最新提交: ed94c7c (fix: 修复托盘图标显示问题)
+- 最新提交: ed53e5f (feat: 添加帮助页面和 Tauri 权限配置)
 
 ## MVP 状态: 全部完成
 
