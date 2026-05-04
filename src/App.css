@@ -114,14 +114,39 @@ html, body, #root {
   overflow: hidden;
 }
 
-.file-tree {
-  width: 240px;
+.file-tree-wrapper {
+  position: relative;
+  display: flex;
   border-right: 1px solid #e0e0e0;
-  overflow-y: auto;
   background: #fafafa;
+  min-width: 160px;
+  max-width: 600px;
+}
+
+.file-tree {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.file-tree-resizer {
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.15s;
+  position: relative;
+  z-index: 10;
+}
+
+.file-tree-resizer:hover,
+.file-tree-resizer:active {
+  background: #1890ff;
 }
 
 .tree-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   padding: 4px 8px;
   cursor: pointer;
   font-size: 13px;
@@ -140,6 +165,22 @@ html, body, #root {
 
 .tree-item.dir {
   font-weight: 500;
+}
+
+.tree-arrow {
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.tree-folder-icon,
+.tree-file-icon {
+  flex-shrink: 0;
+  font-size: 13px;
+}
+
+.tree-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .file-menu-container {
