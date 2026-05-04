@@ -6,6 +6,9 @@ mod image_cache;
 mod tray;
 mod updater;
 
+#[cfg(test)]
+pub mod test_utils;
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
