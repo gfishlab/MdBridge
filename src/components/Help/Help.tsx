@@ -21,24 +21,6 @@ export function Help({ onClose }: HelpProps) {
         </div>
         <div className="help-body">
           <section>
-            <h4>基础语法</h4>
-            <table className="help-table">
-              <thead>
-                <tr><th>效果</th><th>语法</th></tr>
-              </thead>
-              <tbody>
-                <tr><td><strong>加粗</strong></td><td><code>**文字**</code></td></tr>
-                <tr><td><em>斜体</em></td><td><code>*文字*</code></td></tr>
-                <tr><td>~~删除线~~</td><td><code>~~文字~~</code></td></tr>
-                <tr><td>行内代码</td><td><code>`代码`</code></td></tr>
-                <tr><td>链接</td><td><code>[文字](URL)</code></td></tr>
-                <tr><td>图片</td><td><code>![描述](URL)</code></td></tr>
-                <tr><td>分割线</td><td><code>---</code></td></tr>
-              </tbody>
-            </table>
-          </section>
-
-          <section>
             <h4>标题</h4>
             <table className="help-table">
               <thead>
@@ -56,45 +38,65 @@ export function Help({ onClose }: HelpProps) {
           </section>
 
           <section>
-            <h4>列表与引用</h4>
+            <h4>文本格式</h4>
             <table className="help-table">
               <thead>
-                <tr><th>类型</th><th>语法</th></tr>
+                <tr><th>效果</th><th>语法</th><th>快捷键</th></tr>
               </thead>
               <tbody>
-                <tr><td>无序列表</td><td><code>- 列表项</code></td></tr>
-                <tr><td>有序列表</td><td><code>1. 列表项</code></td></tr>
-                <tr><td>待办事项</td><td><code>- [ ] 待办 / - [x] 完成</code></td></tr>
-                <tr><td>引用</td><td><code>&gt; 引用文字</code></td></tr>
+                <tr><td><strong>加粗</strong></td><td><code>**文字**</code></td><td dangerouslySetInnerHTML={{ __html: kbd(`${mod} + B`) }} /></tr>
+                <tr><td><em>斜体</em></td><td><code>*文字*</code></td><td dangerouslySetInnerHTML={{ __html: kbd(`${mod} + I`) }} /></tr>
+                <tr><td>删除线</td><td><code>~~文字~~</code></td><td dangerouslySetInnerHTML={{ __html: kbd('Ctrl + Shift + X') }} /></tr>
+                <tr><td>行内代码</td><td><code>`代码`</code></td><td dangerouslySetInnerHTML={{ __html: kbd(`${mod} + J`) }} /></tr>
+                <tr><td>代码块</td><td><code>```语言↵代码↵```</code></td><td dangerouslySetInnerHTML={{ __html: kbd(`${mod} + Shift + J`) }} /></tr>
+                <tr><td>注释</td><td><code>&lt;!-- 文字 --&gt;</code></td><td dangerouslySetInnerHTML={{ __html: kbd(`${mod} + /`) }} /></tr>
               </tbody>
             </table>
           </section>
 
           <section>
-            <h4>代码块与表格</h4>
+            <h4>插入元素</h4>
             <table className="help-table">
               <thead>
-                <tr><th>类型</th><th>语法</th></tr>
+                <tr><th>类型</th><th>语法</th><th>快捷键</th></tr>
               </thead>
               <tbody>
-                <tr><td>代码块</td><td><code>```语言↵代码↵```</code></td></tr>
-                <tr><td>表格</td><td><code>| 列1 | 列2 |↵|---|---|↵| 值 | 值 |</code></td></tr>
+                <tr><td>链接</td><td><code>[文字](URL)</code></td><td dangerouslySetInnerHTML={{ __html: kbd(`${mod} + L`) }} /></tr>
+                <tr><td>图片</td><td><code>![描述](URL)</code></td><td dangerouslySetInnerHTML={{ __html: kbd(`${mod} + K`) }} /></tr>
+                <tr><td>引用</td><td><code>&gt; 引用文字</code></td><td dangerouslySetInnerHTML={{ __html: kbd(`${mod} + Q`) }} /></tr>
+                <tr><td>分割线</td><td><code>---</code></td><td dangerouslySetInnerHTML={{ __html: kbd(`${mod} + H`) }} /></tr>
+                <tr><td>表格</td><td><code>| 列1 | 列2 |</code></td><td>—</td></tr>
               </tbody>
             </table>
           </section>
 
           <section>
-            <h4>快捷键</h4>
+            <h4>列表</h4>
+            <table className="help-table">
+              <thead>
+                <tr><th>类型</th><th>语法</th><th>快捷键</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>无序列表</td><td><code>- 列表项</code></td><td dangerouslySetInnerHTML={{ __html: kbd('Ctrl + Shift + U') }} /></tr>
+                <tr><td>有序列表</td><td><code>1. 列表项</code></td><td dangerouslySetInnerHTML={{ __html: kbd('Ctrl + Shift + O') }} /></tr>
+                <tr><td>待办事项</td><td><code>- [ ] 待办</code></td><td dangerouslySetInnerHTML={{ __html: kbd('Ctrl + Shift + C') }} /></tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section>
+            <h4>编辑操作</h4>
             <table className="help-table">
               <thead>
                 <tr><th>功能</th><th>快捷键</th></tr>
               </thead>
               <tbody>
                 <tr><td>保存文件</td><td dangerouslySetInnerHTML={{ __html: kbd(`${mod} + S`) }} /></tr>
-                <tr><td>加粗</td><td dangerouslySetInnerHTML={{ __html: kbd(`${mod} + B`) }} /></tr>
-                <tr><td>斜体</td><td dangerouslySetInnerHTML={{ __html: kbd(`${mod} + I`) }} /></tr>
-                <tr><td>行内代码</td><td dangerouslySetInnerHTML={{ __html: kbd(`${mod} + E`) }} /></tr>
-                <tr><td>链接</td><td dangerouslySetInnerHTML={{ __html: kbd(`${mod} + K`) }} /></tr>
+                <tr><td>复制当前行</td><td dangerouslySetInnerHTML={{ __html: kbd('Ctrl + D') }} /></tr>
+                <tr><td>上移当前行</td><td dangerouslySetInnerHTML={{ __html: kbd('Alt + ↑') }} /></tr>
+                <tr><td>下移当前行</td><td dangerouslySetInnerHTML={{ __html: kbd('Alt + ↓') }} /></tr>
+                <tr><td>缩进</td><td><kbd>Tab</kbd></td></tr>
+                <tr><td>取消缩进</td><td><kbd>Shift</kbd> + <kbd>Tab</kbd></td></tr>
               </tbody>
             </table>
           </section>

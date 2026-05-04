@@ -40,18 +40,18 @@
 
 - [x] 修复文件对话框无响应（添加 Tauri capabilities/default.json 权限配置）
 - [x] 新增帮助页面（Markdown 语法速查 + 快捷键，区分 macOS/Windows）
-- [x] 标题快捷键一级到六级完整展示
+- [x] 帮助页快捷键与编辑器内置快捷键对齐（标题、文本格式、插入元素、列表、编辑操作）
+- [x] Vite 代码分割优化（1.2MB 单 chunk → 5 个 chunk，无构建警告）
 
 ## 测试状态
 
 - Rust: 49 tests passing
 - Frontend: 1 test passing
 - 分支: feat/mdbridge-mvp
-- 最新提交: ed53e5f (feat: 添加帮助页面和 Tauri 权限配置)
+- 最新提交: bba9fe6 (docs: 更新项目进度文档)
 
 ## MVP 状态: 全部完成
 
 ## 已知问题
 
 - git push 需要使用 SSH（已从 HTTPS 切换到 SSH）
-- 前端构建有 chunk size 警告（可考虑代码分割优化）
