@@ -27,7 +27,7 @@ pub fn get_platforms() -> Vec<PlatformInfo> {
     vec![
         PlatformInfo { name: "wechat".into(), display_name: "微信公众号".into(), supports_external_images: true },
         PlatformInfo { name: "bilibili".into(), display_name: "B站专栏".into(), supports_external_images: false },
-        PlatformInfo { name: "csdn".into(), display_name: "CSDN".into(), supports_external_images: true },
+        PlatformInfo { name: "csdn".into(), display_name: "CSDN".into(), supports_external_images: false },
         PlatformInfo { name: "douyin".into(), display_name: "抖音/小红书".into(), supports_external_images: false },
         PlatformInfo { name: "twitter".into(), display_name: "推特".into(), supports_external_images: false },
         PlatformInfo { name: "zhihu".into(), display_name: "知乎".into(), supports_external_images: true },
@@ -42,6 +42,7 @@ pub async fn convert_and_copy(
     state: State<'_, AppState>,
 ) -> Result<String, String> {
     // Do all AST processing first, then drop arena before async
+    let md_text = markdown.clone();
     let (html, needs_embed, image_urls) = {
         let arena = Arena::new();
         let doc = parse_markdown(&arena, &markdown);
@@ -58,6 +59,7 @@ pub async fn convert_and_copy(
 
     if needs_embed {
         let mut final_html = html;
+        let mut embed_errors: Vec<String> = Vec::new();
 
         for url in &image_urls {
             let cached = {
@@ -70,35 +72,61 @@ pub async fn convert_and_copy(
             } else {
                 match reqwest::get(url).await {
                     Ok(resp) => {
-                        if let Ok(bytes) = resp.bytes().await {
-                            let data = bytes.to_vec();
-                            let mut cache = state.image_cache.lock().unwrap();
-                            let _ = cache.put(url, &data);
-                            data
-                        } else {
+                        let status = resp.status();
+                        if !status.is_success() {
+                            embed_errors.push(format!("{}: HTTP {}", url, status));
                             continue;
                         }
+                        match resp.bytes().await {
+                            Ok(bytes) => {
+                                let data = bytes.to_vec();
+                                if data.len() < 100 {
+                                    embed_errors.push(format!("{}: 文件过小({}字节)", url, data.len()));
+                                    continue;
+                                }
+                                let mut cache = state.image_cache.lock().unwrap();
+                                let _ = cache.put(url, &data);
+                                data
+                            }
+                            Err(e) => {
+                                embed_errors.push(format!("{}: 读取失败: {}", url, e));
+                                continue;
+                            }
+                        }
                     }
-                    Err(_) => continue,
+                    Err(e) => {
+                        embed_errors.push(format!("{}: 下载失败: {}", url, e));
+                        continue;
+                    }
                 }
             };
 
             let base64 = base64_encode(&image_data);
-            let mime = detect_mime(url);
+            let mime = detect_mime(url, &image_data);
             let data_url = format!("data:{};base64,{}", mime, base64);
             final_html = final_html.replace(url, &data_url);
         }
 
-        clipboard::copy_html(&final_html)?;
+        clipboard::copy_rich_text(&final_html, &md_text)?;
+
+        let mut config = state.config.lock().unwrap();
+        config.default_platform = platform;
+        config.save();
+
+        if embed_errors.is_empty() {
+            Ok("已复制到剪贴板".into())
+        } else {
+            Ok(format!("已复制到剪贴板（{}张图片内嵌失败: {}）", embed_errors.len(), embed_errors.join("; ")))
+        }
     } else {
-        clipboard::copy_html(&html)?;
+        clipboard::copy_rich_text(&html, &markdown)?;
+
+        let mut config = state.config.lock().unwrap();
+        config.default_platform = platform;
+        config.save();
+
+        Ok("已复制到剪贴板".into())
     }
-
-    let mut config = state.config.lock().unwrap();
-    config.default_platform = platform;
-    config.save();
-
-    Ok("已复制到剪贴板".into())
 }
 
 #[tauri::command]
@@ -196,7 +224,15 @@ fn base64_encode(data: &[u8]) -> String {
     base64::engine::general_purpose::STANDARD.encode(data)
 }
 
-fn detect_mime(url: &str) -> &str {
+fn detect_mime(url: &str, data: &[u8]) -> &'static str {
+    // 优先通过文件头判断
+    if data.len() >= 8 {
+        if data[0..4] == [0x89, 0x50, 0x4E, 0x47] { return "image/png"; }
+        if data[0..3] == [0xFF, 0xD8, 0xFF] { return "image/jpeg"; }
+        if data[0..4] == [0x47, 0x49, 0x46, 0x38] { return "image/gif"; }
+        if data[0..4] == [0x52, 0x49, 0x46, 0x46] && data.len() >= 12 && &data[8..12] == b"WEBP" { return "image/webp"; }
+    }
+    // 回退到 URL 后缀
     if url.ends_with(".png") { "image/png" }
     else if url.ends_with(".gif") { "image/gif" }
     else if url.ends_with(".webp") { "image/webp" }

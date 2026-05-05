@@ -6,7 +6,7 @@ pub struct CsdnConverter;
 
 impl PlatformConverter for CsdnConverter {
     fn name(&self) -> &str { "csdn" }
-    fn supports_external_images(&self) -> bool { true }
+    fn supports_external_images(&self) -> bool { false }
 
     fn convert<'a>(&self, ast: &'a AstNode<'a>) -> String {
         ast_to_html(ast)

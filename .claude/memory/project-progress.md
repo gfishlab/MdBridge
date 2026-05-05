@@ -42,16 +42,16 @@
 - [x] 新增帮助页面（Markdown 语法速查 + 快捷键，区分 macOS/Windows）
 - [x] 帮助页快捷键与编辑器内置快捷键对齐（标题、文本格式、插入元素、列表、编辑操作）
 - [x] Vite 代码分割优化（1.2MB 单 chunk → 5 个 chunk，无构建警告）
+- [x] 文件树排序分组 + 可拖拽调整宽度
+- [x] 修复剪贴板粘贴无反应（同时设置 HTML + 纯文本格式）
+- [x] CSDN 标记为不支持外链图片，自动下载内嵌 base64
+- [x] 图片下载增加错误反馈和 MIME 文件头检测
 
 ## 测试状态
 
 - Rust: 49 tests passing
 - Frontend: 1 test passing
 - 分支: feat/mdbridge-mvp
-- 最新提交: bba9fe6 (docs: 更新项目进度文档)
+- 最新提交: 2cabdc8 (feat: 文件树排序分组 + 可拖拽调整宽度)
 
 ## MVP 状态: 全部完成
-
-## 已知问题
-
-- git push 需要使用 SSH（已从 HTTPS 切换到 SSH）
