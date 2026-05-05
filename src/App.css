@@ -117,10 +117,38 @@ html, body, #root {
 .file-tree-wrapper {
   position: relative;
   display: flex;
+  flex-direction: column;
   border-right: 1px solid #e0e0e0;
   background: #fafafa;
   min-width: 160px;
   max-width: 600px;
+}
+
+.file-tree-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+  padding: 4px 8px;
+  border-bottom: 1px solid #e8e8e8;
+  flex-shrink: 0;
+}
+
+.tree-toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #666;
+}
+
+.tree-toolbar-btn:hover {
+  background: #e0e0e0;
+  color: #333;
 }
 
 .file-tree {

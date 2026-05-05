@@ -21,19 +21,75 @@ function sortFiles(files: FileInfo[]): FileInfo[] {
   }).map(f => f.is_dir && f.children ? { ...f, children: sortFiles(f.children) } : f);
 }
 
+function collectDirPaths(files: FileInfo[]): string[] {
+  const paths: string[] = [];
+  for (const f of files) {
+    if (f.is_dir) {
+      paths.push(f.path);
+      if (f.children) paths.push(...collectDirPaths(f.children));
+    }
+  }
+  return paths;
+}
+
+function findAncestorDirs(files: FileInfo[], targetPath: string): string[] {
+  const dirs: string[] = [];
+  function walk(items: FileInfo[]): boolean {
+    for (const f of items) {
+      if (f.path === targetPath) return true;
+      if (f.is_dir && f.children) {
+        if (walk(f.children)) {
+          dirs.push(f.path);
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+  walk(files);
+  return dirs;
+}
+
 export function FileTree({ folderPath, onFileSelect, currentFile }: FileTreeProps) {
   const [files, setFiles] = useState<FileInfo[]>([]);
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
   const [width, setWidth] = useState(240);
   const containerRef = useRef<HTMLDivElement>(null);
+  const activeItemRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
 
   useEffect(() => {
     if (folderPath) {
       invoke<FileInfo[]>('read_folder', { path: folderPath }).then(data => {
         setFiles(sortFiles(data));
+        setExpandedDirs(new Set());
       });
     }
   }, [folderPath]);
+
+  const expandAll = () => setExpandedDirs(new Set(collectDirPaths(files)));
+  const collapseAll = () => setExpandedDirs(new Set());
+
+  const toggleDir = (path: string) => {
+    setExpandedDirs(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path); else next.add(path);
+      return next;
+    });
+  };
+
+  const locateFile = () => {
+    if (!currentFile) return;
+    const ancestorDirs = findAncestorDirs(files, currentFile);
+    setExpandedDirs(prev => {
+      const next = new Set(prev);
+      ancestorDirs.forEach(d => next.add(d));
+      return next;
+    });
+    setTimeout(() => {
+      activeItemRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
+  };
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -56,6 +112,24 @@ export function FileTree({ folderPath, onFileSelect, currentFile }: FileTreeProp
 
   return (
     <div className="file-tree-wrapper" style={{ width }}>
+      <div className="file-tree-toolbar">
+        <button className="tree-toolbar-btn" onClick={expandAll} title="展开全部">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M6 9l6 6 6-6"/>
+          </svg>
+        </button>
+        <button className="tree-toolbar-btn" onClick={collapseAll} title="折叠全部">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M18 15l-6-6-6 6"/>
+          </svg>
+        </button>
+        <button className="tree-toolbar-btn" onClick={locateFile} title="定位当前文件">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
+          </svg>
+        </button>
+      </div>
       <div className="file-tree" ref={containerRef}>
         {files.map((file) => (
           <FileNode
@@ -64,6 +138,9 @@ export function FileTree({ folderPath, onFileSelect, currentFile }: FileTreeProp
             onFileSelect={onFileSelect}
             currentFile={currentFile}
             depth={0}
+            expandedDirs={expandedDirs}
+            toggleDir={toggleDir}
+            activeItemRef={activeItemRef}
           />
         ))}
       </div>
@@ -77,21 +154,28 @@ function FileNode({
   onFileSelect,
   currentFile,
   depth,
+  expandedDirs,
+  toggleDir,
+  activeItemRef,
 }: {
   file: FileInfo;
   onFileSelect: (path: string) => void;
   currentFile: string;
   depth: number;
+  expandedDirs: Set<string>;
+  toggleDir: (path: string) => void;
+  activeItemRef: React.RefObject<HTMLDivElement | null>;
 }) {
-  const [expanded, setExpanded] = useState(true);
+  const isActive = file.path === currentFile;
 
   if (file.is_dir) {
+    const expanded = expandedDirs.has(file.path);
     return (
       <div>
         <div
           className="tree-item dir"
           style={{ paddingLeft: depth * 16 + 8 }}
-          onClick={() => setExpanded(!expanded)}
+          onClick={() => toggleDir(file.path)}
           title={file.name}
         >
           <span className="tree-arrow">{expanded ? '▼' : '▶'}</span>
@@ -106,6 +190,9 @@ function FileNode({
               onFileSelect={onFileSelect}
               currentFile={currentFile}
               depth={depth + 1}
+              expandedDirs={expandedDirs}
+              toggleDir={toggleDir}
+              activeItemRef={activeItemRef}
             />
           ))}
       </div>
@@ -114,7 +201,8 @@ function FileNode({
 
   return (
     <div
-      className={`tree-item file ${file.path === currentFile ? 'active' : ''}`}
+      ref={isActive ? activeItemRef : undefined}
+      className={`tree-item file ${isActive ? 'active' : ''}`}
       style={{ paddingLeft: depth * 16 + 8 }}
       onClick={() => onFileSelect(file.path)}
       title={file.name}
