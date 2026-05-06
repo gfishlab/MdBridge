@@ -59,9 +59,9 @@
 
 ## 测试状态
 
-- Rust: 45 tests passing（`cargo test --manifest-path src-tauri/Cargo.toml --lib -- --test-threads=1`）
+- Rust: 44 tests passing（`cargo test --manifest-path src-tauri/Cargo.toml --lib -- --test-threads=1`）
 - Frontend build: passing（`npm run build`）
-- Frontend unit: 现有 `npm test -- --run` 仍需补 Tauri API mock，并更新已移除的 MDBridge 标题断言
+- Frontend unit: 1 test passing（`npm test -- --run`）
 - 分支: feat/mdbridge-mvp
 - 最新提交: chore: remove douyin platform
 

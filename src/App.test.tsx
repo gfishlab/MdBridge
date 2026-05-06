@@ -3,8 +3,11 @@ import { describe, it, expect } from 'vitest';
 import App from './App';
 
 describe('App', () => {
-  it('renders the app name', () => {
+  it('renders the toolbar actions', () => {
     render(<App />);
-    expect(screen.getByText('MDBridge')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /文件/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /发布/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /设置/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /帮助/ })).toBeInTheDocument();
   });
 });

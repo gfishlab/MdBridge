@@ -33,6 +33,7 @@ impl ImageCache {
         cache
     }
 
+    #[cfg(test)]
     pub fn cache_dir(&self) -> &PathBuf {
         &self.cache_dir
     }
