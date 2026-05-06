@@ -41,7 +41,6 @@ pub async fn convert_and_copy(
     platform: String,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
-    // Do all AST processing first, then drop arena before async
     let md_text = markdown.clone();
     let (html, needs_embed, image_urls) = {
         let arena = Arena::new();
@@ -99,6 +98,13 @@ pub async fn convert_and_copy(
                         continue;
                     }
                 }
+            };
+
+            // 抖音平台图片尺寸限制: 100~2000px
+            let image_data = if platform == "douyin" {
+                resize_for_douyin(&image_data)
+            } else {
+                image_data
             };
 
             let base64 = base64_encode(&image_data);
@@ -224,15 +230,39 @@ fn base64_encode(data: &[u8]) -> String {
     base64::engine::general_purpose::STANDARD.encode(data)
 }
 
+fn resize_for_douyin(data: &[u8]) -> Vec<u8> {
+    use image::GenericImageView;
+
+    let Ok(img) = image::load_from_memory(data) else {
+        return data.to_vec();
+    };
+
+    let (w, h) = img.dimensions();
+    if w <= 2000 && h <= 2000 && w >= 100 && h >= 100 {
+        return data.to_vec();
+    }
+
+    let max_dim = 2000u32;
+    let ratio = f64::min(max_dim as f64 / w as f64, max_dim as f64 / h as f64);
+    let new_w = ((w as f64 * ratio) as u32).max(100);
+    let new_h = ((h as f64 * ratio) as u32).max(100);
+
+    let resized = img.resize(new_w, new_h, image::imageops::FilterType::Lanczos3);
+    let mut buf = Vec::new();
+    let encoder = image::codecs::png::PngEncoder::new(&mut buf);
+    if resized.write_with_encoder(encoder).is_err() {
+        return data.to_vec();
+    }
+    buf
+}
+
 fn detect_mime(url: &str, data: &[u8]) -> &'static str {
-    // 优先通过文件头判断
     if data.len() >= 8 {
         if data[0..4] == [0x89, 0x50, 0x4E, 0x47] { return "image/png"; }
         if data[0..3] == [0xFF, 0xD8, 0xFF] { return "image/jpeg"; }
         if data[0..4] == [0x47, 0x49, 0x46, 0x38] { return "image/gif"; }
         if data[0..4] == [0x52, 0x49, 0x46, 0x46] && data.len() >= 12 && &data[8..12] == b"WEBP" { return "image/webp"; }
     }
-    // 回退到 URL 后缀
     if url.ends_with(".png") { "image/png" }
     else if url.ends_with(".gif") { "image/gif" }
     else if url.ends_with(".webp") { "image/webp" }

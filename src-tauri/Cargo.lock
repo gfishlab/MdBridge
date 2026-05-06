@@ -2526,6 +2526,7 @@ dependencies = [
  "base64 0.22.1",
  "comrak",
  "dirs 5.0.1",
+ "hex",
  "image",
  "png 0.17.16",
  "reqwest 0.12.28",
