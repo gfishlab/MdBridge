@@ -8,7 +8,7 @@ use comrak::Arena;
 use serde::Serialize;
 use std::fs;
 use std::sync::Mutex;
-use tauri::{State, AppHandle};
+use tauri::{AppHandle, State};
 
 pub struct AppState {
     pub config: Mutex<AppConfig>,
@@ -25,13 +25,36 @@ pub struct PlatformInfo {
 #[tauri::command]
 pub fn get_platforms() -> Vec<PlatformInfo> {
     vec![
-        PlatformInfo { name: "wechat".into(), display_name: "微信公众号".into(), supports_external_images: true },
-        PlatformInfo { name: "bilibili".into(), display_name: "B站专栏".into(), supports_external_images: false },
-        PlatformInfo { name: "csdn".into(), display_name: "CSDN".into(), supports_external_images: false },
-        PlatformInfo { name: "douyin".into(), display_name: "抖音/小红书".into(), supports_external_images: false },
-        PlatformInfo { name: "twitter".into(), display_name: "推特".into(), supports_external_images: false },
-        PlatformInfo { name: "zhihu".into(), display_name: "知乎".into(), supports_external_images: true },
-        PlatformInfo { name: "juejin".into(), display_name: "掘金".into(), supports_external_images: true },
+        PlatformInfo {
+            name: "wechat".into(),
+            display_name: "微信公众号".into(),
+            supports_external_images: true,
+        },
+        PlatformInfo {
+            name: "bilibili".into(),
+            display_name: "B站专栏".into(),
+            supports_external_images: false,
+        },
+        PlatformInfo {
+            name: "csdn".into(),
+            display_name: "CSDN".into(),
+            supports_external_images: false,
+        },
+        PlatformInfo {
+            name: "twitter".into(),
+            display_name: "推特".into(),
+            supports_external_images: false,
+        },
+        PlatformInfo {
+            name: "zhihu".into(),
+            display_name: "知乎".into(),
+            supports_external_images: true,
+        },
+        PlatformInfo {
+            name: "juejin".into(),
+            display_name: "掘金".into(),
+            supports_external_images: true,
+        },
     ]
 }
 
@@ -51,7 +74,11 @@ pub async fn convert_and_copy(
 
         let html = converter.convert(doc);
         let needs_embed = !converter.supports_external_images();
-        let image_urls = if needs_embed { extract_image_urls(doc) } else { vec![] };
+        let image_urls = if needs_embed {
+            extract_image_urls(doc)
+        } else {
+            vec![]
+        };
 
         (html, needs_embed, image_urls)
     };
@@ -61,50 +88,12 @@ pub async fn convert_and_copy(
         let mut embed_errors: Vec<String> = Vec::new();
 
         for url in &image_urls {
-            let cached = {
-                let cache = state.image_cache.lock().unwrap();
-                cache.get(url)
-            };
-
-            let image_data = if let Some(data) = cached {
-                data
-            } else {
-                match reqwest::get(url).await {
-                    Ok(resp) => {
-                        let status = resp.status();
-                        if !status.is_success() {
-                            embed_errors.push(format!("{}: HTTP {}", url, status));
-                            continue;
-                        }
-                        match resp.bytes().await {
-                            Ok(bytes) => {
-                                let data = bytes.to_vec();
-                                if data.len() < 100 {
-                                    embed_errors.push(format!("{}: 文件过小({}字节)", url, data.len()));
-                                    continue;
-                                }
-                                let mut cache = state.image_cache.lock().unwrap();
-                                let _ = cache.put(url, &data);
-                                data
-                            }
-                            Err(e) => {
-                                embed_errors.push(format!("{}: 读取失败: {}", url, e));
-                                continue;
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        embed_errors.push(format!("{}: 下载失败: {}", url, e));
-                        continue;
-                    }
+            let image_data = match load_cached_or_download_image(url, &state).await {
+                Ok(data) => data,
+                Err(e) => {
+                    embed_errors.push(format!("{}: {}", url, e));
+                    continue;
                 }
-            };
-
-            // 抖音平台图片尺寸限制: 100~2000px
-            let image_data = if platform == "douyin" {
-                resize_for_douyin(&image_data)
-            } else {
-                image_data
             };
 
             let base64 = base64_encode(&image_data);
@@ -122,7 +111,11 @@ pub async fn convert_and_copy(
         if embed_errors.is_empty() {
             Ok("已复制到剪贴板".into())
         } else {
-            Ok(format!("已复制到剪贴板（{}张图片内嵌失败: {}）", embed_errors.len(), embed_errors.join("; ")))
+            Ok(format!(
+                "已复制到剪贴板（{}张图片内嵌失败: {}）",
+                embed_errors.len(),
+                embed_errors.join("; ")
+            ))
         }
     } else {
         clipboard::copy_rich_text(&html, &markdown)?;
@@ -200,9 +193,16 @@ pub fn update_config(updates: serde_json::Value, state: State<'_, AppState>) -> 
         config.image_cache_size_mb = cache_size;
     }
     if let Some(platform) = updates.get("default_platform").and_then(|v| v.as_str()) {
-        config.default_platform = platform.to_string();
+        config.default_platform = if platform == "douyin" {
+            "wechat".into()
+        } else {
+            platform.to_string()
+        };
     }
-    if let Some(check) = updates.get("check_updates_on_startup").and_then(|v| v.as_bool()) {
+    if let Some(check) = updates
+        .get("check_updates_on_startup")
+        .and_then(|v| v.as_bool())
+    {
         config.check_updates_on_startup = check;
     }
     config.save();
@@ -225,46 +225,68 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
     updater::install_update(app).await
 }
 
+async fn load_cached_or_download_image(
+    url: &str,
+    state: &State<'_, AppState>,
+) -> Result<Vec<u8>, String> {
+    let cached = {
+        let cache = state.image_cache.lock().unwrap();
+        cache.get(url)
+    };
+
+    if let Some(data) = cached {
+        return Ok(data);
+    }
+
+    let resp = reqwest::get(url)
+        .await
+        .map_err(|e| format!("下载失败: {}", e))?;
+    let status = resp.status();
+    if !status.is_success() {
+        return Err(format!("HTTP {}", status));
+    }
+
+    let data = resp
+        .bytes()
+        .await
+        .map_err(|e| format!("读取失败: {}", e))?
+        .to_vec();
+    if data.len() < 100 {
+        return Err(format!("文件过小({}字节)", data.len()));
+    }
+
+    let mut cache = state.image_cache.lock().unwrap();
+    let _ = cache.put(url, &data);
+    Ok(data)
+}
+
 fn base64_encode(data: &[u8]) -> String {
     use base64::Engine;
     base64::engine::general_purpose::STANDARD.encode(data)
 }
 
-fn resize_for_douyin(data: &[u8]) -> Vec<u8> {
-    use image::GenericImageView;
-
-    let Ok(img) = image::load_from_memory(data) else {
-        return data.to_vec();
-    };
-
-    let (w, h) = img.dimensions();
-    if w <= 2000 && h <= 2000 && w >= 100 && h >= 100 {
-        return data.to_vec();
-    }
-
-    let max_dim = 2000u32;
-    let ratio = f64::min(max_dim as f64 / w as f64, max_dim as f64 / h as f64);
-    let new_w = ((w as f64 * ratio) as u32).max(100);
-    let new_h = ((h as f64 * ratio) as u32).max(100);
-
-    let resized = img.resize(new_w, new_h, image::imageops::FilterType::Lanczos3);
-    let mut buf = Vec::new();
-    let encoder = image::codecs::png::PngEncoder::new(&mut buf);
-    if resized.write_with_encoder(encoder).is_err() {
-        return data.to_vec();
-    }
-    buf
-}
-
 fn detect_mime(url: &str, data: &[u8]) -> &'static str {
     if data.len() >= 8 {
-        if data[0..4] == [0x89, 0x50, 0x4E, 0x47] { return "image/png"; }
-        if data[0..3] == [0xFF, 0xD8, 0xFF] { return "image/jpeg"; }
-        if data[0..4] == [0x47, 0x49, 0x46, 0x38] { return "image/gif"; }
-        if data[0..4] == [0x52, 0x49, 0x46, 0x46] && data.len() >= 12 && &data[8..12] == b"WEBP" { return "image/webp"; }
+        if data[0..4] == [0x89, 0x50, 0x4E, 0x47] {
+            return "image/png";
+        }
+        if data[0..3] == [0xFF, 0xD8, 0xFF] {
+            return "image/jpeg";
+        }
+        if data[0..4] == [0x47, 0x49, 0x46, 0x38] {
+            return "image/gif";
+        }
+        if data[0..4] == [0x52, 0x49, 0x46, 0x46] && data.len() >= 12 && &data[8..12] == b"WEBP" {
+            return "image/webp";
+        }
     }
-    if url.ends_with(".png") { "image/png" }
-    else if url.ends_with(".gif") { "image/gif" }
-    else if url.ends_with(".webp") { "image/webp" }
-    else { "image/jpeg" }
+    if url.ends_with(".png") {
+        "image/png"
+    } else if url.ends_with(".gif") {
+        "image/gif"
+    } else if url.ends_with(".webp") {
+        "image/webp"
+    } else {
+        "image/jpeg"
+    }
 }

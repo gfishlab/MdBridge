@@ -9,10 +9,10 @@
 - [x] Task 2: 项目结构（前端组件目录）
 - [x] Task 2.5: 测试基础设施（Vitest + Rust 测试工具）
 - [x] Task 3: AST 解析器（comrak: parse_markdown, walk_nodes, extract_image_urls）
-- [x] Task 4: PlatformConverter trait + 7 个平台桩模块
+- [x] Task 4: PlatformConverter trait + 6 个平台模块
 - [x] Task 5: 基础 HTML 生成器（ast_to_html）
 - [x] Task 6: 微信公众号转换器（自定义 HTML，表格转文本）
-- [x] Task 7: 剩余 6 个平台转换器（bilibili, csdn, douyin, twitter, zhihu, juejin）
+- [x] Task 7: 剩余 5 个平台转换器（bilibili, csdn, twitter, zhihu, juejin）
 - [x] Task 8: 图片磁盘缓存（LRU 淘汰 + SHA256 哈希）
 - [x] Task 9: 剪贴板管理器（纯文本、HTML、富文本）
 - [x] Task 10: 配置模块（AppConfig 加载/保存）
@@ -48,11 +48,21 @@
 - [x] CSDN 标记为不支持外链图片，自动下载内嵌 base64
 - [x] 图片下载增加错误反馈和 MIME 文件头检测
 
+## 平台调整与文件树修复（2026-05-06）
+
+- [x] 移除抖音/小红书发布平台（发布菜单、设置页、后端平台注册）
+- [x] 删除抖音转换器和抖音专用图片/封面处理逻辑
+- [x] 旧配置 default_platform=douyin 自动迁移回 wechat
+- [x] 目标平台更新为 6 个：微信公众号、B站专栏、CSDN、推特、知乎、掘金
+- [x] 修复文件树右侧拖拽条定位，支持鼠标左右拖动调整左侧文件树宽度
+- [x] 拖拽文件树宽度时锁定 col-resize 光标并避免选中文字
+
 ## 测试状态
 
-- Rust: 49 tests passing
-- Frontend: 1 test passing
+- Rust: 45 tests passing（`cargo test --manifest-path src-tauri/Cargo.toml --lib -- --test-threads=1`）
+- Frontend build: passing（`npm run build`）
+- Frontend unit: 现有 `npm test -- --run` 仍需补 Tauri API mock，并更新已移除的 MDBridge 标题断言
 - 分支: feat/mdbridge-mvp
-- 最新提交: 9af1f5e (fix: 修复 CSDN 发布图片加载失败)
+- 最新提交: chore: remove douyin platform
 
 ## MVP 状态: 全部完成

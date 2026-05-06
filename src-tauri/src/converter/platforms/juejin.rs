@@ -1,12 +1,16 @@
-use comrak::nodes::AstNode;
 use super::PlatformConverter;
 use crate::converter::html::ast_to_html;
+use comrak::nodes::AstNode;
 
 pub struct JuejinConverter;
 
 impl PlatformConverter for JuejinConverter {
-    fn name(&self) -> &str { "juejin" }
-    fn supports_external_images(&self) -> bool { true }
+    fn name(&self) -> &str {
+        "juejin"
+    }
+    fn supports_external_images(&self) -> bool {
+        true
+    }
 
     fn convert<'a>(&self, ast: &'a AstNode<'a>) -> String {
         ast_to_html(ast)

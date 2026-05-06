@@ -1,12 +1,16 @@
-use comrak::nodes::{AstNode, NodeValue};
 use super::PlatformConverter;
 use crate::converter::ast::walk_nodes;
+use comrak::nodes::{AstNode, NodeValue};
 
 pub struct TwitterConverter;
 
 impl PlatformConverter for TwitterConverter {
-    fn name(&self) -> &str { "twitter" }
-    fn supports_external_images(&self) -> bool { false }
+    fn name(&self) -> &str {
+        "twitter"
+    }
+    fn supports_external_images(&self) -> bool {
+        false
+    }
 
     fn convert<'a>(&self, ast: &'a AstNode<'a>) -> String {
         let mut text = String::new();

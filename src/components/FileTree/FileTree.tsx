@@ -94,6 +94,8 @@ export function FileTree({ folderPath, onFileSelect, currentFile }: FileTreeProp
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     dragging.current = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
     const startX = e.clientX;
     const startWidth = width;
     const onMouseMove = (ev: MouseEvent) => {
@@ -103,6 +105,8 @@ export function FileTree({ folderPath, onFileSelect, currentFile }: FileTreeProp
     };
     const onMouseUp = () => {
       dragging.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
     };
@@ -164,7 +168,7 @@ function FileNode({
   depth: number;
   expandedDirs: Set<string>;
   toggleDir: (path: string) => void;
-  activeItemRef: React.RefObject<HTMLDivElement | null>;
+  activeItemRef: React.MutableRefObject<HTMLDivElement | null>;
 }) {
   const isActive = file.path === currentFile;
 
@@ -201,7 +205,9 @@ function FileNode({
 
   return (
     <div
-      ref={isActive ? activeItemRef : undefined}
+      ref={(node) => {
+        if (isActive) activeItemRef.current = node;
+      }}
       className={`tree-item file ${isActive ? 'active' : ''}`}
       style={{ paddingLeft: depth * 16 + 8 }}
       onClick={() => onFileSelect(file.path)}

@@ -61,7 +61,6 @@ export function Settings({ onClose }: SettingsProps) {
             <option value="wechat">微信公众号</option>
             <option value="bilibili">B站专栏</option>
             <option value="csdn">CSDN</option>
-            <option value="douyin">抖音/小红书</option>
             <option value="twitter">推特</option>
             <option value="zhihu">知乎</option>
             <option value="juejin">掘金</option>

@@ -26,7 +26,7 @@ impl Default for AppConfig {
 impl AppConfig {
     pub fn load() -> Self {
         let path = config_path();
-        if path.exists() {
+        let mut config = if path.exists() {
             fs::read_to_string(&path)
                 .ok()
                 .and_then(|s| serde_json::from_str(&s).ok())
@@ -35,7 +35,14 @@ impl AppConfig {
             let config = AppConfig::default();
             config.save();
             config
+        };
+
+        if config.default_platform == "douyin" {
+            config.default_platform = "wechat".into();
+            config.save();
         }
+
+        config
     }
 
     pub fn save(&self) {

@@ -1,12 +1,16 @@
-use comrak::nodes::AstNode;
 use super::PlatformConverter;
 use crate::converter::html::ast_to_html;
+use comrak::nodes::AstNode;
 
 pub struct BilibiliConverter;
 
 impl PlatformConverter for BilibiliConverter {
-    fn name(&self) -> &str { "bilibili" }
-    fn supports_external_images(&self) -> bool { false }
+    fn name(&self) -> &str {
+        "bilibili"
+    }
+    fn supports_external_images(&self) -> bool {
+        false
+    }
 
     fn convert<'a>(&self, ast: &'a AstNode<'a>) -> String {
         ast_to_html(ast)

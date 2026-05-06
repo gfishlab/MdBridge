@@ -118,6 +118,7 @@ html, body, #root {
   position: relative;
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
   border-right: 1px solid #e0e0e0;
   background: #fafafa;
   min-width: 160px;
@@ -158,11 +159,14 @@ html, body, #root {
 }
 
 .file-tree-resizer {
-  width: 4px;
+  position: absolute;
+  top: 0;
+  right: -3px;
+  bottom: 0;
+  width: 6px;
   cursor: col-resize;
   background: transparent;
   transition: background 0.15s;
-  position: relative;
   z-index: 10;
 }
 

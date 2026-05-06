@@ -1,12 +1,16 @@
-use comrak::nodes::AstNode;
 use super::PlatformConverter;
 use crate::converter::html::ast_to_html;
+use comrak::nodes::AstNode;
 
 pub struct CsdnConverter;
 
 impl PlatformConverter for CsdnConverter {
-    fn name(&self) -> &str { "csdn" }
-    fn supports_external_images(&self) -> bool { false }
+    fn name(&self) -> &str {
+        "csdn"
+    }
+    fn supports_external_images(&self) -> bool {
+        false
+    }
 
     fn convert<'a>(&self, ast: &'a AstNode<'a>) -> String {
         ast_to_html(ast)

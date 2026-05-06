@@ -1,12 +1,11 @@
 use comrak::nodes::AstNode;
 
-pub mod wechat;
 pub mod bilibili;
 pub mod csdn;
-pub mod douyin;
-pub mod twitter;
-pub mod zhihu;
 pub mod juejin;
+pub mod twitter;
+pub mod wechat;
+pub mod zhihu;
 
 pub trait PlatformConverter {
     fn name(&self) -> &str;
@@ -19,7 +18,6 @@ pub fn get_all_converters() -> Vec<Box<dyn PlatformConverter>> {
         Box::new(wechat::WechatConverter),
         Box::new(bilibili::BilibiliConverter),
         Box::new(csdn::CsdnConverter),
-        Box::new(douyin::DouyinConverter),
         Box::new(twitter::TwitterConverter),
         Box::new(zhihu::ZhihuConverter),
         Box::new(juejin::JuejinConverter),
@@ -53,7 +51,7 @@ mod tests {
     #[test]
     fn test_get_all_converters_count() {
         let converters = get_all_converters();
-        assert_eq!(converters.len(), 7);
+        assert_eq!(converters.len(), 6);
     }
 
     #[test]

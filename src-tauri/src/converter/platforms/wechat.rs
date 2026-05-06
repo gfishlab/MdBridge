@@ -1,6 +1,6 @@
-use comrak::nodes::{AstNode, NodeValue};
-use crate::converter::ast::walk_nodes;
 use super::PlatformConverter;
+use crate::converter::ast::walk_nodes;
+use comrak::nodes::{AstNode, NodeValue};
 
 pub struct WechatConverter;
 
