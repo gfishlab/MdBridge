@@ -38,6 +38,19 @@ impl ImageCache {
         &self.cache_dir
     }
 
+    #[cfg(test)]
+    pub fn with_cache_dir(cache_dir: PathBuf, max_size: Option<u64>) -> Self {
+        fs::create_dir_all(&cache_dir).unwrap();
+
+        let mut cache = ImageCache {
+            cache_dir,
+            max_size: max_size.unwrap_or(500 * 1024 * 1024),
+            index: HashMap::new(),
+        };
+        cache.load_index();
+        cache
+    }
+
     pub fn get(&self, url: &str) -> Option<Vec<u8>> {
         let key = hash_url(url);
         if let Some(entry) = self.index.get(&key) {
@@ -127,11 +140,23 @@ pub fn hash_url(url: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static NEXT_CACHE_ID: AtomicUsize = AtomicUsize::new(0);
+
+    fn test_cache(max_size: Option<u64>) -> ImageCache {
+        let id = NEXT_CACHE_ID.fetch_add(1, Ordering::SeqCst);
+        let cache_dir =
+            std::env::temp_dir().join(format!("mdbridge-test-cache-{}-{id}", std::process::id()));
+        let _ = fs::remove_dir_all(&cache_dir);
+        ImageCache::with_cache_dir(cache_dir, max_size)
+    }
 
     #[test]
     fn test_cache_directory_creation() {
-        let cache = ImageCache::new(Some(1024 * 1024));
+        let cache = test_cache(Some(1024 * 1024));
         assert!(cache.cache_dir().exists());
+        cache.clear().unwrap();
     }
 
     #[test]
@@ -143,7 +168,7 @@ mod tests {
 
     #[test]
     fn test_cache_hit() {
-        let mut cache = ImageCache::new(Some(1024 * 1024));
+        let mut cache = test_cache(Some(1024 * 1024));
         let url = "https://example.com/test.png";
         let data = b"fake image data";
 
@@ -160,7 +185,7 @@ mod tests {
 
     #[test]
     fn test_clear_cache() {
-        let mut cache = ImageCache::new(Some(1024 * 1024));
+        let mut cache = test_cache(Some(1024 * 1024));
         cache.put("x", b"data").unwrap();
         cache.clear().unwrap();
         assert!(cache.get("x").is_none());
