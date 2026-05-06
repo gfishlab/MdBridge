@@ -14,6 +14,13 @@ mod tests {
 
     #[test]
     fn test_clipboard_rich_text() {
+        if cfg!(target_os = "linux")
+            && std::env::var_os("DISPLAY").is_none()
+            && std::env::var_os("WAYLAND_DISPLAY").is_none()
+        {
+            return;
+        }
+
         let result = copy_rich_text("<p>Hello</p>", "Hello");
         assert!(result.is_ok());
     }
