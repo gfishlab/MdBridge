@@ -127,11 +127,17 @@ html, body, #root {
 
 .file-tree-toolbar {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   gap: 2px;
   padding: 4px 8px;
   border-bottom: 1px solid #e8e8e8;
   flex-shrink: 0;
+}
+
+.tree-toolbar-left {
+  display: flex;
+  gap: 2px;
 }
 
 .tree-toolbar-btn {

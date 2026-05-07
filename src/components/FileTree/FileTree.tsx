@@ -58,6 +58,14 @@ export function FileTree({ folderPath, onFileSelect, currentFile }: FileTreeProp
   const activeItemRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
 
+  const loadFiles = useCallback(() => {
+    if (folderPath) {
+      invoke<FileInfo[]>('read_folder', { path: folderPath }).then(data => {
+        setFiles(sortFiles(data));
+      });
+    }
+  }, [folderPath]);
+
   useEffect(() => {
     if (folderPath) {
       invoke<FileInfo[]>('read_folder', { path: folderPath }).then(data => {
@@ -66,6 +74,16 @@ export function FileTree({ folderPath, onFileSelect, currentFile }: FileTreeProp
       });
     }
   }, [folderPath]);
+
+  const handleNewFile = async () => {
+    const name = prompt('请输入文件名（不需要输入 .md 后缀）：');
+    if (!name?.trim()) return;
+    const fileName = name.trim().endsWith('.md') ? name.trim() : `${name.trim()}.md`;
+    const filePath = `${folderPath}/${fileName}`;
+    await invoke('write_file', { path: filePath, content: '' });
+    loadFiles();
+    onFileSelect(filePath);
+  };
 
   const expandAll = () => setExpandedDirs(new Set(collectDirPaths(files)));
   const collapseAll = () => setExpandedDirs(new Set());
@@ -117,7 +135,8 @@ export function FileTree({ folderPath, onFileSelect, currentFile }: FileTreeProp
   return (
     <div className="file-tree-wrapper" style={{ width }}>
       <div className="file-tree-toolbar">
-        <button className="tree-toolbar-btn" onClick={expandAll} title="展开全部">
+        <div className="tree-toolbar-left">
+          <button className="tree-toolbar-btn" onClick={expandAll} title="展开全部">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M6 9l6 6 6-6"/>
           </svg>
@@ -128,9 +147,18 @@ export function FileTree({ folderPath, onFileSelect, currentFile }: FileTreeProp
           </svg>
         </button>
         <button className="tree-toolbar-btn" onClick={locateFile} title="定位当前文件">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
+            </svg>
+          </button>
+        </div>
+        <button className="tree-toolbar-btn" onClick={handleNewFile} title="新建文档">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="12" y1="18" x2="12" y2="12"/>
+            <line x1="9" y1="15" x2="15" y2="15"/>
           </svg>
         </button>
       </div>
