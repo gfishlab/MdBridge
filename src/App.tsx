@@ -30,6 +30,13 @@ function App() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const handleNewFile = () => {
+    setMarkdown('');
+    setCurrentFile('');
+    setStatusMessage('新建文档');
+    setShowFileMenu(false);
+  };
+
   const handleOpenFile = async () => {
     const selected = await open({
       filters: [{ name: 'Markdown', extensions: ['md'] }],
@@ -102,6 +109,7 @@ function App() {
             </button>
             {showFileMenu && (
               <div className="file-menu">
+                <button onClick={handleNewFile}>新建文档</button>
                 <button onClick={handleOpenFile}>打开文件</button>
                 <button onClick={handleOpenFolder}>打开文件夹</button>
                 <button onClick={handleSave}>保存</button>

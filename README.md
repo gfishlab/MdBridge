@@ -21,7 +21,7 @@
 
 ### 文件菜单
 
-![文件菜单](docs/screenshots/file-menu.png)
+![文件菜单](docs/screenshots/new-file-menu.png)
 
 ### 发布菜单
 
