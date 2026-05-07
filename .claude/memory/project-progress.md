@@ -62,7 +62,22 @@
 - Rust: 44 tests passing（`cargo test --manifest-path src-tauri/Cargo.toml --lib -- --test-threads=1`）
 - Frontend build: passing（`npm run build`）
 - Frontend unit: 1 test passing（`npm test -- --run`）
-- 分支: feat/mdbridge-mvp
-- 最新提交: chore: remove douyin platform
+- 分支: main（默认分支已从 feat/mdbridge-mvp 切换到 main）
+- 版本: v0.1.2
 
 ## MVP 状态: 全部完成
+
+## README 与文档（2026-05-07）
+
+- [x] 编写中文简体 README.md（功能特性、支持平台、技术栈、开发指南、快捷键、项目结构）
+- [x] 添加应用截图（编辑器、文件菜单、发布菜单、帮助页面）
+- [x] GitHub 仓库默认分支从 feat/mdbridge-mvp 切换到 main
+
+## 功能增强（2026-05-07）
+
+- [x] 文件菜单新增「新建文档」按钮
+  - 无文件夹时：清空编辑器，显示空白文档
+  - 有文件夹时：触发文件树内联输入框，输入文件名后在当前文件夹下创建 .md 文件
+- [x] 文件树工具栏新增「新建文档」按钮（右上角 + 图标），点击后在文件树顶部弹出输入框
+- [x] 修复保存按钮错误使用 open() 对话框的问题，改为 save() 保存对话框
+- [x] 文件树新建按钮使用内联输入框替代被 Tauri WKWebView 屏蔽的 prompt()
