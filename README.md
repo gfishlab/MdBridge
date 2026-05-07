@@ -17,21 +17,21 @@
 
 ### 编辑器
 
-![MDBridge 编辑器](docs/screenshots/editor-rich.png)
+![MDBridge 编辑器](https://cdn.jsdelivr.net/gh/gxj1134506645/img-bed/images/20260507223233396.png)
 
 ### 文件菜单
 
-![文件菜单](docs/screenshots/new-file-menu.png)
+![文件菜单](https://cdn.jsdelivr.net/gh/gxj1134506645/img-bed/images/20260507223233397.png)
 
 ### 发布菜单
 
-![发布菜单](docs/screenshots/publish-menu.png)
+![发布菜单](https://cdn.jsdelivr.net/gh/gxj1134506645/img-bed/images/20260507223233398.png)
 
 选择目标平台后，内容会自动转换格式并复制到剪贴板。然后打开对应平台的编辑器（如微信公众号后台），直接粘贴即可。
 
 ### 帮助页面
 
-![帮助页面](docs/screenshots/help.png)
+![帮助页面](https://cdn.jsdelivr.net/gh/gxj1134506645/img-bed/images/20260507223233399.png)
 
 ## 支持平台
 
