@@ -54,6 +54,9 @@ export function FileTree({ folderPath, onFileSelect, currentFile }: FileTreeProp
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
   const [width, setWidth] = useState(240);
+  const [newFileName, setNewFileName] = useState('');
+  const [showNewFileInput, setShowNewFileInput] = useState(false);
+  const newFileInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const activeItemRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
@@ -75,12 +78,23 @@ export function FileTree({ folderPath, onFileSelect, currentFile }: FileTreeProp
     }
   }, [folderPath]);
 
-  const handleNewFile = async () => {
-    const name = prompt('请输入文件名（不需要输入 .md 后缀）：');
-    if (!name?.trim()) return;
-    const fileName = name.trim().endsWith('.md') ? name.trim() : `${name.trim()}.md`;
+  const handleNewFile = () => {
+    setShowNewFileInput(true);
+    setNewFileName('');
+    setTimeout(() => newFileInputRef.current?.focus(), 50);
+  };
+
+  const confirmNewFile = async () => {
+    const name = newFileName.trim();
+    if (!name) {
+      setShowNewFileInput(false);
+      return;
+    }
+    const fileName = name.endsWith('.md') ? name : `${name}.md`;
     const filePath = `${folderPath}/${fileName}`;
     await invoke('write_file', { path: filePath, content: '' });
+    setShowNewFileInput(false);
+    setNewFileName('');
     loadFiles();
     onFileSelect(filePath);
   };
@@ -163,6 +177,27 @@ export function FileTree({ folderPath, onFileSelect, currentFile }: FileTreeProp
         </button>
       </div>
       <div className="file-tree" ref={containerRef}>
+        {showNewFileInput && (
+          <div className="tree-item new-file-input" style={{ paddingLeft: 8 }}>
+            <span className="tree-file-icon">📄</span>
+            <input
+              ref={newFileInputRef}
+              className="new-file-name"
+              value={newFileName}
+              onChange={(e) => setNewFileName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') confirmNewFile();
+                if (e.key === 'Escape') setShowNewFileInput(false);
+              }}
+              onBlur={() => {
+                setTimeout(() => {
+                  if (showNewFileInput) confirmNewFile();
+                }, 100);
+              }}
+              placeholder="输入文件名..."
+            />
+          </div>
+        )}
         {files.map((file) => (
           <FileNode
             key={file.path}

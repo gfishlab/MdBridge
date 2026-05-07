@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { open } from '@tauri-apps/plugin-dialog';
+import { open, save } from '@tauri-apps/plugin-dialog';
 import { Editor } from './components/Editor';
 import { PlatformBar } from './components/PlatformBar';
 import { FileTree } from './components/FileTree';
@@ -16,6 +16,8 @@ function App() {
   const [folderPath, setFolderPath] = useState('');
   const [showFileTree, setShowFileTree] = useState(false);
   const [showFileMenu, setShowFileMenu] = useState(false);
+  const [showNewFileDialog, setShowNewFileDialog] = useState(false);
+  const [newFileName, setNewFileName] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const fileMenuRef = useRef<HTMLDivElement>(null);
@@ -31,10 +33,28 @@ function App() {
   }, []);
 
   const handleNewFile = () => {
-    setMarkdown('');
-    setCurrentFile('');
-    setStatusMessage('新建文档');
     setShowFileMenu(false);
+    if (folderPath) {
+      setNewFileName('');
+      setShowNewFileDialog(true);
+    } else {
+      setMarkdown('');
+      setCurrentFile('');
+      setStatusMessage('新建文档');
+    }
+  };
+
+  const confirmNewFile = async () => {
+    const name = newFileName.trim();
+    if (!name) return;
+    const fileName = name.endsWith('.md') ? name : `${name}.md`;
+    const filePath = `${folderPath}/${fileName}`;
+    await invoke('write_file', { path: filePath, content: '' });
+    setMarkdown('');
+    setCurrentFile(filePath);
+    setStatusMessage(`新建文档: ${fileName}`);
+    setShowNewFileDialog(false);
+    setNewFileName('');
   };
 
   const handleOpenFile = async () => {
@@ -69,7 +89,7 @@ function App() {
       await invoke('write_file', { path: currentFile, content: markdown });
       setStatusMessage('已保存');
     } else {
-      const selected = await open({
+      const selected = await save({
         filters: [{ name: 'Markdown', extensions: ['md'] }],
       });
       if (selected) {
@@ -159,6 +179,30 @@ function App() {
       <UpdateDialog />
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
       {showHelp && <Help onClose={() => setShowHelp(false)} />}
+      {showNewFileDialog && (
+        <div className="settings-overlay" onClick={() => setShowNewFileDialog(false)}>
+          <div className="settings-dialog" onClick={e => e.stopPropagation()}>
+            <h3>新建文档</h3>
+            <div className="setting-item">
+              <label>文件名（自动添加 .md 后缀）</label>
+              <input
+                autoFocus
+                value={newFileName}
+                onChange={e => setNewFileName(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') confirmNewFile();
+                  if (e.key === 'Escape') setShowNewFileDialog(false);
+                }}
+                placeholder="请输入文件名"
+              />
+            </div>
+            <div className="settings-actions">
+              <button onClick={() => setShowNewFileDialog(false)}>取消</button>
+              <button onClick={confirmNewFile}>创建</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
