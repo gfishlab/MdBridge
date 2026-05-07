@@ -23,6 +23,10 @@
 
 ![文件菜单](docs/screenshots/file-menu.png)
 
+### 发布菜单
+
+![发布菜单](docs/screenshots/publish-menu.png)
+
 ### 帮助页面
 
 ![帮助页面](docs/screenshots/help.png)
