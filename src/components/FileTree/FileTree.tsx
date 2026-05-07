@@ -12,6 +12,7 @@ interface FileTreeProps {
   folderPath: string;
   onFileSelect: (path: string) => void;
   currentFile: string;
+  newFileTrigger: number;
 }
 
 function sortFiles(files: FileInfo[]): FileInfo[] {
@@ -50,7 +51,7 @@ function findAncestorDirs(files: FileInfo[], targetPath: string): string[] {
   return dirs;
 }
 
-export function FileTree({ folderPath, onFileSelect, currentFile }: FileTreeProps) {
+export function FileTree({ folderPath, onFileSelect, currentFile, newFileTrigger }: FileTreeProps) {
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
   const [width, setWidth] = useState(240);
@@ -77,6 +78,12 @@ export function FileTree({ folderPath, onFileSelect, currentFile }: FileTreeProp
       });
     }
   }, [folderPath]);
+
+  useEffect(() => {
+    if (newFileTrigger > 0) {
+      handleNewFile();
+    }
+  }, [newFileTrigger]);
 
   const handleNewFile = () => {
     setShowNewFileInput(true);
