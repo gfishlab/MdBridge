@@ -30,6 +30,7 @@ pub fn run() {
             commands::convert_and_copy,
             commands::read_file,
             commands::write_file,
+            commands::delete_file,
             commands::read_folder,
             commands::get_config,
             commands::update_config,

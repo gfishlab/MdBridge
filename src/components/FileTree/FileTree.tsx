@@ -215,6 +215,7 @@ export function FileTree({ folderPath, onFileSelect, currentFile, newFileTrigger
             expandedDirs={expandedDirs}
             toggleDir={toggleDir}
             activeItemRef={activeItemRef}
+            onRefresh={loadFiles}
           />
         ))}
       </div>
@@ -231,6 +232,7 @@ function FileNode({
   expandedDirs,
   toggleDir,
   activeItemRef,
+  onRefresh,
 }: {
   file: FileInfo;
   onFileSelect: (path: string) => void;
@@ -239,8 +241,42 @@ function FileNode({
   expandedDirs: Set<string>;
   toggleDir: (path: string) => void;
   activeItemRef: React.MutableRefObject<HTMLDivElement | null>;
+  onRefresh: () => void;
 }) {
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const isActive = file.path === currentFile;
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  };
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [contextMenu]);
+
+  const handleDelete = async () => {
+    setContextMenu(null);
+    if (!confirm(`确定删除 "${file.name}" 吗？`)) return;
+    try {
+      await invoke('delete_file', { path: file.path });
+      onRefresh();
+    } catch (e) {
+      alert(`删除失败: ${e}`);
+    }
+  };
+
+  const handleCopyPath = async () => {
+    setContextMenu(null);
+    try {
+      await navigator.clipboard.writeText(file.path);
+    } catch {
+      // fallback: Tauri clipboard not available
+    }
+  };
 
   if (file.is_dir) {
     const expanded = expandedDirs.has(file.path);
@@ -267,6 +303,7 @@ function FileNode({
               expandedDirs={expandedDirs}
               toggleDir={toggleDir}
               activeItemRef={activeItemRef}
+              onRefresh={onRefresh}
             />
           ))}
       </div>
@@ -274,17 +311,33 @@ function FileNode({
   }
 
   return (
-    <div
-      ref={(node) => {
-        if (isActive) activeItemRef.current = node;
-      }}
-      className={`tree-item file ${isActive ? 'active' : ''}`}
-      style={{ paddingLeft: depth * 16 + 8 }}
-      onClick={() => onFileSelect(file.path)}
-      title={file.name}
-    >
-      <span className="tree-file-icon">📄</span>
-      <span className="tree-name">{file.name}</span>
-    </div>
+    <>
+      <div
+        ref={(node) => {
+          if (isActive) activeItemRef.current = node;
+        }}
+        className={`tree-item file ${isActive ? 'active' : ''}`}
+        style={{ paddingLeft: depth * 16 + 8 }}
+        onClick={() => onFileSelect(file.path)}
+        onContextMenu={handleContextMenu}
+        title={file.name}
+      >
+        <span className="tree-file-icon">📄</span>
+        <span className="tree-name">{file.name}</span>
+      </div>
+      {contextMenu && (
+        <div
+          className="context-menu"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+        >
+          <button className="context-menu-item" onClick={handleCopyPath}>
+            复制文件路径
+          </button>
+          <button className="context-menu-item danger" onClick={handleDelete}>
+            删除文件
+          </button>
+        </div>
+      )}
+    </>
   );
 }

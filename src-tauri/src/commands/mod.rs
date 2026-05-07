@@ -139,6 +139,14 @@ pub fn write_file(path: String, content: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn delete_file(path: String) -> Result<(), String> {
+    if !path.ends_with(".md") {
+        return Err("只能删除 .md 文件".into());
+    }
+    fs::remove_file(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn read_folder(path: String) -> Result<Vec<FileInfo>, String> {
     let mut files = Vec::new();
     read_folder_recursive(&path, &mut files)?;
