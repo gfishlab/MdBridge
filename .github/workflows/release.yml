@@ -58,7 +58,12 @@ jobs:
           args: --target ${{ matrix.target }}
           tagName: v__VERSION__
           releaseName: MDBridge v__VERSION__
-          releaseBody: 'See the assets below to download.'
+          releaseBody: |
+            请在下方 Assets 中下载对应平台的安装包。
+
+            - macOS：下载 `.dmg`
+            - Windows：下载 `.exe` 或 `.msi`
+            - Linux：下载 `.AppImage`、`.deb` 或 `.rpm`
           releaseDraft: false
           prerelease: false
           uploadUpdaterJson: true
