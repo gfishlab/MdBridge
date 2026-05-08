@@ -61,3 +61,6 @@ jobs:
           releaseBody: 'See the assets below to download.'
           releaseDraft: false
           prerelease: false
+          uploadUpdaterJson: true
+          uploadUpdaterSignatures: true
+          updaterJsonPreferNsis: true
