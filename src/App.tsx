@@ -9,6 +9,12 @@ import { Settings } from './components/Settings';
 import { Help } from './components/Help/Help';
 import './App.css';
 
+interface Config {
+  image_cache_size_mb: number;
+  default_platform: string;
+  check_updates_on_startup: boolean;
+}
+
 function App() {
   const [markdown, setMarkdown] = useState('# Hello MDBridge\n\nStart writing...');
   const [statusMessage, setStatusMessage] = useState('');
@@ -29,6 +35,21 @@ function App() {
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    async function checkStartupUpdates() {
+      try {
+        const config = await invoke<Config>('get_config');
+        if (config.check_updates_on_startup) {
+          await invoke('check_for_updates');
+        }
+      } catch (err) {
+        console.error('Startup update check failed:', err);
+      }
+    }
+
+    checkStartupUpdates();
   }, []);
 
   const handleNewFile = () => {

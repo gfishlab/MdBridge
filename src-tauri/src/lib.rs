@@ -37,18 +37,11 @@ pub fn run() {
             commands::clear_image_cache,
             commands::check_for_updates,
             commands::install_update,
+            commands::get_app_version,
+            commands::open_release_page,
         ])
         .setup(|app| {
             tray::setup_tray(app.handle())?;
-
-            // Auto-check for updates on startup
-            let app_handle = app.handle().clone();
-            let config = AppConfig::load();
-            if config.check_updates_on_startup {
-                tauri::async_runtime::spawn(async move {
-                    let _ = updater::check_for_updates(app_handle).await;
-                });
-            }
 
             Ok(())
         })

@@ -233,6 +233,16 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
     updater::install_update(app).await
 }
 
+#[tauri::command]
+pub fn get_app_version() -> String {
+    updater::current_version()
+}
+
+#[tauri::command]
+pub fn open_release_page(url: String) -> Result<(), String> {
+    updater::open_release_page(url)
+}
+
 async fn load_cached_or_download_image(
     url: &str,
     state: &State<'_, AppState>,
