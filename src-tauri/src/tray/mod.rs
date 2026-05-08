@@ -1,12 +1,20 @@
 pub mod menu;
 
 use tauri::{
-    AppHandle, Manager,
     image::Image,
-    tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    AppHandle, Manager,
 };
 
 const TRAY_ICON_PNG: &[u8] = include_bytes!("../../icons/tray-icon.png");
+
+pub fn show_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
 
 pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let tray_menu = menu::build_tray_menu(app)?;
@@ -32,10 +40,7 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
             } = event
             {
                 let app = tray.app_handle();
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
+                show_main_window(app);
             }
         })
         .build(app)?;

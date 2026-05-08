@@ -1,6 +1,6 @@
 use tauri::{
-    AppHandle, Manager,
     menu::{Menu, MenuItem},
+    AppHandle,
 };
 
 pub fn build_tray_menu(app: &AppHandle) -> Result<Menu<tauri::Wry>, Box<dyn std::error::Error>> {
@@ -14,10 +14,7 @@ pub fn build_tray_menu(app: &AppHandle) -> Result<Menu<tauri::Wry>, Box<dyn std:
 pub fn handle_tray_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
     match event.id().as_ref() {
         "show" => {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
+            super::show_main_window(app);
         }
         "quit" => {
             app.exit(0);
