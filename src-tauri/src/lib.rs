@@ -24,6 +24,7 @@ pub fn run() {
         .manage(AppState {
             config: Mutex::new(config),
             image_cache: Mutex::new(ImageCache::new(cache_size)),
+            folder_watcher: Mutex::new(None),
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_platforms,
@@ -32,6 +33,8 @@ pub fn run() {
             commands::write_file,
             commands::delete_file,
             commands::read_folder,
+            commands::watch_folder,
+            commands::unwatch_folder,
             commands::get_config,
             commands::update_config,
             commands::clear_image_cache,

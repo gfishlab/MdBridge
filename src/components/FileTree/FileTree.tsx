@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 interface FileInfo {
@@ -13,6 +14,10 @@ interface FileTreeProps {
   onFileSelect: (path: string) => void;
   currentFile: string;
   newFileTrigger: number;
+}
+
+interface FileSystemChange {
+  root_path: string;
 }
 
 function sortFiles(files: FileInfo[]): FileInfo[] {
@@ -78,6 +83,27 @@ export function FileTree({ folderPath, onFileSelect, currentFile, newFileTrigger
       });
     }
   }, [folderPath]);
+
+  useEffect(() => {
+    if (!folderPath) return;
+
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    const refreshInterval = setInterval(loadFiles, 1500);
+    const unlisten = listen<FileSystemChange>('file-system-changed', (event) => {
+      if (event.payload.root_path !== folderPath) return;
+
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => {
+        loadFiles();
+      }, 150);
+    });
+
+    return () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      clearInterval(refreshInterval);
+      unlisten.then((fn) => fn());
+    };
+  }, [folderPath, loadFiles]);
 
   useEffect(() => {
     if (newFileTrigger > 0) {
