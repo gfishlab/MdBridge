@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { Editor } from './components/Editor';
 import { PlatformBar } from './components/PlatformBar';
@@ -15,6 +16,10 @@ interface Config {
   check_updates_on_startup: boolean;
 }
 
+interface FileSystemChange {
+  paths: string[];
+}
+
 function App() {
   const [markdown, setMarkdown] = useState('# Hello MDBridge\n\nStart writing...');
   const [statusMessage, setStatusMessage] = useState('');
@@ -26,6 +31,18 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const fileMenuRef = useRef<HTMLDivElement>(null);
+  const currentFileRef = useRef('');
+  const markdownRef = useRef(markdown);
+  const hasLocalEditsRef = useRef(false);
+  const externalReloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    currentFileRef.current = currentFile;
+  }, [currentFile]);
+
+  useEffect(() => {
+    markdownRef.current = markdown;
+  }, [markdown]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -71,6 +88,7 @@ function App() {
       const content = await invoke<string>('read_file', { path: selected });
       setMarkdown(content);
       setCurrentFile(selected as string);
+      hasLocalEditsRef.current = false;
       setShowFileMenu(false);
     }
   };
@@ -78,7 +96,9 @@ function App() {
   const handleOpenFolder = async () => {
     const selected = await open({ directory: true });
     if (selected) {
-      setFolderPath(selected as string);
+      const path = selected as string;
+      await invoke('watch_folder', { path });
+      setFolderPath(path);
       setShowFileTree(true);
       setShowFileMenu(false);
     }
@@ -88,11 +108,13 @@ function App() {
     const content = await invoke<string>('read_file', { path });
     setMarkdown(content);
     setCurrentFile(path);
+    hasLocalEditsRef.current = false;
   };
 
   const handleSave = async () => {
     if (currentFile) {
       await invoke('write_file', { path: currentFile, content: markdown });
+      hasLocalEditsRef.current = false;
       setStatusMessage('已保存');
     } else {
       const selected = await save({
@@ -101,11 +123,83 @@ function App() {
       if (selected) {
         await invoke('write_file', { path: selected, content: markdown });
         setCurrentFile(selected as string);
+        hasLocalEditsRef.current = false;
         setStatusMessage('已保存');
       }
     }
     setShowFileMenu(false);
   };
+
+  const handleEditorChange = (value: string) => {
+    hasLocalEditsRef.current = true;
+    setMarkdown(value);
+  };
+
+  useEffect(() => {
+    if (!folderPath) return;
+
+    invoke('watch_folder', { path: folderPath }).catch((err) => {
+      setStatusMessage(`监听文件夹失败: ${err}`);
+    });
+
+    return () => {
+      invoke('unwatch_folder').catch(() => {});
+    };
+  }, [folderPath]);
+
+  useEffect(() => {
+    if (!currentFile) return;
+
+    const interval = setInterval(async () => {
+      const activeFile = currentFileRef.current;
+      if (!activeFile || hasLocalEditsRef.current) return;
+
+      try {
+        const content = await invoke<string>('read_file', { path: activeFile });
+        if (content !== markdownRef.current) {
+          setMarkdown(content);
+          setStatusMessage('已刷新外部修改');
+        }
+      } catch {
+        // Ignore transient read errors; direct event handling reports immediate failures.
+      }
+    }, 1500);
+
+    return () => clearInterval(interval);
+  }, [currentFile]);
+
+  useEffect(() => {
+    const unlisten = listen<FileSystemChange>('file-system-changed', (event) => {
+      const activeFile = currentFileRef.current;
+      if (!activeFile || !event.payload.paths.includes(activeFile)) return;
+
+      if (hasLocalEditsRef.current) {
+        setStatusMessage('当前文件已在外部修改，请先保存或重新打开以避免覆盖本地编辑');
+        return;
+      }
+
+      if (externalReloadTimerRef.current) clearTimeout(externalReloadTimerRef.current);
+      externalReloadTimerRef.current = setTimeout(async () => {
+        if (hasLocalEditsRef.current) {
+          setStatusMessage('当前文件已在外部修改，请先保存或重新打开以避免覆盖本地编辑');
+          return;
+        }
+
+        try {
+          const content = await invoke<string>('read_file', { path: activeFile });
+          setMarkdown(content);
+          setStatusMessage('已刷新外部修改');
+        } catch (err) {
+          setStatusMessage(`刷新文件失败: ${err}`);
+        }
+      }, 150);
+    });
+
+    return () => {
+      if (externalReloadTimerRef.current) clearTimeout(externalReloadTimerRef.current);
+      unlisten.then((fn) => fn());
+    };
+  }, []);
 
   // Keyboard shortcut: Cmd/Ctrl+S
   useEffect(() => {
@@ -176,7 +270,7 @@ function App() {
           />
         )}
         <main className="content">
-          <Editor value={markdown} onChange={setMarkdown} />
+          <Editor value={markdown} onChange={handleEditorChange} />
         </main>
       </div>
       <footer className="status-bar">

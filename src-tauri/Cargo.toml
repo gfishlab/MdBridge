@@ -1,6 +1,6 @@
 [package]
 name = "mdbridge"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2021"
 
 [dependencies]
@@ -19,6 +19,7 @@ dirs = "5"
 image = "0.25"
 base64 = "0.22"
 png = "0.17"
+notify = "8.2.0"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

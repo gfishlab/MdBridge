@@ -5,14 +5,17 @@ use crate::converter::platforms;
 use crate::image_cache::ImageCache;
 use crate::updater;
 use comrak::Arena;
+use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
 use std::fs;
+use std::path::Path;
 use std::sync::Mutex;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 
 pub struct AppState {
     pub config: Mutex<AppConfig>,
     pub image_cache: Mutex<ImageCache>,
+    pub folder_watcher: Mutex<Option<RecommendedWatcher>>,
 }
 
 #[derive(Serialize)]
@@ -151,6 +154,63 @@ pub fn read_folder(path: String) -> Result<Vec<FileInfo>, String> {
     let mut files = Vec::new();
     read_folder_recursive(&path, &mut files)?;
     Ok(files)
+}
+
+#[derive(Clone, Serialize)]
+pub struct FileSystemChange {
+    pub root_path: String,
+    pub paths: Vec<String>,
+    pub kind: String,
+}
+
+#[tauri::command]
+pub fn watch_folder(
+    path: String,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let folder_path = Path::new(&path);
+    if !folder_path.is_dir() {
+        return Err("监听路径必须是文件夹".into());
+    }
+
+    let root_path = path.clone();
+    let mut watcher = RecommendedWatcher::new(
+        move |result: notify::Result<notify::Event>| {
+            if let Ok(event) = result {
+                let paths = event
+                    .paths
+                    .iter()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .collect::<Vec<_>>();
+
+                let _ = app.emit(
+                    "file-system-changed",
+                    FileSystemChange {
+                        root_path: root_path.clone(),
+                        paths,
+                        kind: format!("{:?}", event.kind),
+                    },
+                );
+            }
+        },
+        Config::default(),
+    )
+    .map_err(|e| e.to_string())?;
+
+    watcher
+        .watch(folder_path, RecursiveMode::Recursive)
+        .map_err(|e| e.to_string())?;
+
+    let mut current_watcher = state.folder_watcher.lock().unwrap();
+    *current_watcher = Some(watcher);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn unwatch_folder(state: State<'_, AppState>) {
+    let mut current_watcher = state.folder_watcher.lock().unwrap();
+    *current_watcher = None;
 }
 
 #[derive(Serialize)]
