@@ -43,6 +43,13 @@
 - 子代理定义见 `.claude/agents/`
 - 项目记忆见 `.claude/memory/`
 
+## 发布与更新签名
+
+- Tauri 自动更新签名使用本机私钥：`~/.tauri/mdbridge-updater.key`
+- 本机绝对路径：`/Users/gfish/.tauri/mdbridge-updater.key`
+- 该文件是私钥，只记录路径和用途，不要提交或打印密钥内容。
+- 本地签名构建可通过 `TAURI_SIGNING_PRIVATE_KEY="$(cat "$HOME/.tauri/mdbridge-updater.key")"` 注入；GitHub Actions 使用仓库 Secrets `TAURI_SIGNING_PRIVATE_KEY` 和 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。
+
 ## 工作流
 
 1. 新会话自动加载 `session-brief.md`
