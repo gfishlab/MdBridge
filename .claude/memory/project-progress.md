@@ -88,3 +88,18 @@
   - 复制文件路径：将绝对路径复制到系统剪贴板（跨平台，路径格式由操作系统决定）
   - 删除文件：确认后删除该文件，自动刷新文件树
 - [x] Rust 后端新增 delete_file 命令（仅允许删除 .md 文件，防止误操作）
+
+## 实时文件刷新竞态修复 & 发布 v0.1.7（2026-05-31）
+
+- [x] 修复实时文件刷新的 stale-read 覆盖问题：每次 `read_file` 异步读取完成后，重新校验本地编辑状态与当前活动文件，避免读取窗口期内的按键或文件切换被陈旧的外部内容覆盖
+- [x] 新增竞态回归测试（src/App.test.tsx）
+- [x] 版本升级到 0.1.7（package.json / Cargo.toml / Cargo.lock / tauri.conf.json）
+- [x] 提交并推送 main，打 tag v0.1.7 触发 Release workflow（macOS / Windows / Linux 三平台构建）
+
+## 发布日志（changelog）补全（2026-05-31）
+
+- 问题：Release workflow 的 `releaseBody` 是写死的通用下载说明，每个版本都没有变更记录
+- [x] 新增 `CHANGELOG.md`，按版本（v0.1.5/v0.1.6/v0.1.7）记录中文变更日志
+- [x] 用真实变更内容回填 GitHub Release v0.1.7 的说明（`gh release edit`）
+- [x] 改造 `.github/workflows/release.yml`：新增 changelog 提取步骤，按 tag 版本从 `CHANGELOG.md` 抽取对应小节作为 releaseBody，后续发版自动带上当版变更日志
+- 约定：以后发版前先在 `CHANGELOG.md` 增加 `## v<version>` 小节，CI 会自动提取

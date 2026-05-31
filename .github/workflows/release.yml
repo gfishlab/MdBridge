@@ -49,6 +49,32 @@ jobs:
 
       - run: npm ci
 
+      - name: Extract changelog for this version
+        id: changelog
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          section="$(awk -v ver="$version" '
+            $0 ~ "^## v" ver "$" { capture=1; next }
+            capture && /^## v/ { exit }
+            capture { print }
+          ' CHANGELOG.md)"
+          {
+            echo "body<<__CHANGELOG_EOF__"
+            if [ -n "$(printf '%s' "$section" | tr -d '[:space:]')" ]; then
+              printf '%s\n' "$section"
+            fi
+            echo ""
+            echo "---"
+            echo ""
+            echo "请在下方 Assets 中下载对应平台的安装包。"
+            echo ""
+            echo "- macOS：下载 \`.dmg\`"
+            echo "- Windows：下载 \`.exe\` 或 \`.msi\`"
+            echo "- Linux：下载 \`.AppImage\`、\`.deb\` 或 \`.rpm\`"
+            echo "__CHANGELOG_EOF__"
+          } >> "$GITHUB_OUTPUT"
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -58,12 +84,7 @@ jobs:
           args: --target ${{ matrix.target }}
           tagName: v__VERSION__
           releaseName: MDBridge v__VERSION__
-          releaseBody: |
-            请在下方 Assets 中下载对应平台的安装包。
-
-            - macOS：下载 `.dmg`
-            - Windows：下载 `.exe` 或 `.msi`
-            - Linux：下载 `.AppImage`、`.deb` 或 `.rpm`
+          releaseBody: ${{ steps.changelog.outputs.body }}
           releaseDraft: false
           prerelease: false
           uploadUpdaterJson: true
