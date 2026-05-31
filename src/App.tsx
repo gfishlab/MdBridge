@@ -156,6 +156,9 @@ function App() {
 
       try {
         const content = await invoke<string>('read_file', { path: activeFile });
+        // Re-check after the async read: a keystroke or file switch during the
+        // read window must not be clobbered by stale external content.
+        if (hasLocalEditsRef.current || currentFileRef.current !== activeFile) return;
         if (content !== markdownRef.current) {
           setMarkdown(content);
           setStatusMessage('已刷新外部修改');
@@ -187,6 +190,9 @@ function App() {
 
         try {
           const content = await invoke<string>('read_file', { path: activeFile });
+          // Re-check after the async read: a keystroke or file switch during the
+          // read window must not be clobbered by stale external content.
+          if (hasLocalEditsRef.current || currentFileRef.current !== activeFile) return;
           setMarkdown(content);
           setStatusMessage('已刷新外部修改');
         } catch (err) {
