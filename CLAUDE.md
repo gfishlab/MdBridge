@@ -50,6 +50,12 @@
 - 该文件是私钥，只记录路径和用途，不要提交或打印密钥内容。
 - 本地签名构建可通过 `TAURI_SIGNING_PRIVATE_KEY="$(cat "$HOME/.tauri/mdbridge-updater.key")"` 注入；GitHub Actions 使用仓库 Secrets `TAURI_SIGNING_PRIVATE_KEY` 和 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。
 
+## 发版日志约定
+
+- 新版本的 GitHub Release 正文统一用有序列表（`1.` `2.` `3.` …）书写变更条目，不再用 `-` / `*` 无序列表。
+- 分割线 `---` 之前为变更条目，之后为 Assets 下载说明；`extractChangelogItems` 只取分割线之前的列表项。
+- 解析器（`src/components/UpdateDialog/UpdateDialog.tsx`）同时兼容有序与无序标记，以保证旧版本 Release（历史上用 `-`）仍能正确解析；约定只约束新版本的书写方式。
+
 ## 工作流
 
 1. 新会话自动加载 `session-brief.md`

@@ -1,1 +1,1 @@
-export { UpdateDialog } from './UpdateDialog';
+export { UpdateDialog, extractChangelogItems } from './UpdateDialog';

@@ -103,3 +103,11 @@
 - [x] 用真实变更内容回填 GitHub Release v0.1.7 的说明（`gh release edit`）
 - [x] 改造 `.github/workflows/release.yml`：新增 changelog 提取步骤，按 tag 版本从 `CHANGELOG.md` 抽取对应小节作为 releaseBody，后续发版自动带上当版变更日志
 - 约定：以后发版前先在 `CHANGELOG.md` 增加 `## v<version>` 小节，CI 会自动提取
+
+## 更新弹窗渲染 markdown & 发布 v0.1.8（2026-06-01）
+
+- [x] 更新对话框的发布说明改为以 markdown 渲染（之前是纯文本展示 releaseBody）
+- [x] 版本同步升级到 0.1.8（package.json / Cargo.toml / Cargo.lock / tauri.conf.json）
+- [x] `CHANGELOG.md` 新增 `## v0.1.8` 小节
+- [x] 提交并推送 main，打 tag v0.1.8 触发 Release workflow（macOS / Windows / Linux 三平台构建）
+- 进行中：等待 Release workflow 完成（约 11 分钟，run 26733791304）

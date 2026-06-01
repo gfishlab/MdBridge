@@ -363,13 +363,35 @@ html, body, #root {
 
 .update-body {
   margin-bottom: 16px;
-  max-height: 220px;
+  max-height: 240px;
   overflow: auto;
+  background: #f7f8fa;
+  border: 1px solid #eceef1;
+  border-radius: 6px;
+  padding: 12px 16px;
 }
 
-.update-body .wmde-markdown {
-  background: transparent;
+.update-body-title {
+  margin: 0 0 8px;
   font-size: 13px;
+  font-weight: 600;
+  color: #333;
+}
+
+.update-changelog {
+  margin: 0;
+  padding-left: 20px;
+  color: #444;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.update-changelog li {
+  margin-bottom: 6px;
+}
+
+.update-changelog li:last-child {
+  margin-bottom: 0;
 }
 
 .update-actions {
