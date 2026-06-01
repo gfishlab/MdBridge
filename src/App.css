@@ -340,7 +340,7 @@ html, body, #root {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 1100;
 }
 
 .update-dialog {
@@ -363,11 +363,13 @@ html, body, #root {
 
 .update-body {
   margin-bottom: 16px;
-  color: #666;
   max-height: 220px;
   overflow: auto;
-  white-space: pre-wrap;
-  line-height: 1.5;
+}
+
+.update-body .wmde-markdown {
+  background: transparent;
+  font-size: 13px;
 }
 
 .update-actions {

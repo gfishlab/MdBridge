@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
+import MDEditor from '@uiw/react-md-editor';
 
 interface UpdateInfo {
   version: string;
@@ -45,7 +46,11 @@ export function UpdateDialog() {
       <div className="update-dialog">
         <h3>发现新版本 v{update.version}</h3>
         <p className="update-version">当前版本 v{update.current_version}</p>
-        {update.body ? <p className="update-body">{update.body}</p> : null}
+        {update.body ? (
+          <div className="update-body" data-color-mode="light">
+            <MDEditor.Markdown source={update.body} />
+          </div>
+        ) : null}
         <div className="update-actions">
           <button onClick={() => setUpdate(null)}>稍后</button>
           <button onClick={handleUpdate} disabled={downloading}>
