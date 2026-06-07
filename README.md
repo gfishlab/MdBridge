@@ -8,30 +8,42 @@
 - **一键复制** — 选择目标平台，自动转换格式并复制到剪贴板，然后前往对应平台编辑器粘贴即可
 - **6 大平台支持** — 微信公众号、B站专栏、CSDN、知乎、掘金、推特
 - **智能图片处理** — 不支持外链的平台自动下载图片并内嵌为 base64
-- **文件管理** — 支持打开单个 .md 文件或整个文件夹，含可拖拽文件树
+- **文件管理** — 支持打开单个 .md 文件或整个文件夹，文件树侧栏可调宽、可一键左右折叠
 - **系统托盘** — 关闭窗口最小化到托盘，不退出应用
 - **自动更新** — 内置版本检查与更新功能
 - **快捷键** — 保存 `Cmd/Ctrl+S`、快速发布 `Cmd/Ctrl+Shift+P`
 
 ## 截图
 
-### 编辑器
+### 主界面
 
-![MDBridge 编辑器](https://cdn.jsdelivr.net/gh/gxj1134506645/img-bed/images/20260507223233396.png)
+左侧 Markdown 编辑，右侧实时渲染预览，所见即所得。
 
-### 文件菜单
+![MDBridge 主界面](https://cdn.jsdelivr.net/gh/gfishlab/img-bed/images/mdbridge-editor.png)
 
-![文件菜单](https://cdn.jsdelivr.net/gh/gxj1134506645/img-bed/images/20260507223233397.png)
+### 文件树
+
+打开文件夹后，左侧文件树侧栏展示目录结构，支持拖拽调宽、定位当前文件，并可一键左右折叠以腾出编辑空间。
+
+![文件树](https://cdn.jsdelivr.net/gh/gfishlab/img-bed/images/mdbridge-filetree.png)
 
 ### 发布菜单
 
-![发布菜单](https://cdn.jsdelivr.net/gh/gxj1134506645/img-bed/images/20260507223233398.png)
-
 选择目标平台后，内容会自动转换格式并复制到剪贴板。然后打开对应平台的编辑器（如微信公众号后台），直接粘贴即可。
+
+![发布菜单](https://cdn.jsdelivr.net/gh/gfishlab/img-bed/images/mdbridge-publish.png)
+
+### 设置
+
+可配置图片缓存大小、默认发布平台、启动时检查更新等。
+
+![设置](https://cdn.jsdelivr.net/gh/gfishlab/img-bed/images/mdbridge-settings.png)
 
 ### 帮助页面
 
-![帮助页面](https://cdn.jsdelivr.net/gh/gxj1134506645/img-bed/images/20260507223233399.png)
+内置 Markdown 语法与快捷键速查表。
+
+![帮助页面](https://cdn.jsdelivr.net/gh/gfishlab/img-bed/images/mdbridge-help.png)
 
 ## 支持平台
 
