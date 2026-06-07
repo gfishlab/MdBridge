@@ -60,6 +60,7 @@ export function FileTree({ folderPath, onFileSelect, currentFile, newFileTrigger
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
   const [width, setWidth] = useState(240);
+  const [collapsed, setCollapsed] = useState(false);
   const [newFileName, setNewFileName] = useState('');
   const [showNewFileInput, setShowNewFileInput] = useState(false);
   const newFileInputRef = useRef<HTMLInputElement>(null);
@@ -179,10 +180,33 @@ export function FileTree({ folderPath, onFileSelect, currentFile, newFileTrigger
     document.addEventListener('mouseup', onMouseUp);
   }, [width]);
 
+  if (collapsed) {
+    return (
+      <div className="file-tree-wrapper collapsed">
+        <button
+          className="tree-toolbar-btn"
+          onClick={() => setCollapsed(false)}
+          title="展开文件树"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="13 17 18 12 13 7" />
+            <polyline points="6 17 11 12 6 7" />
+          </svg>
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="file-tree-wrapper" style={{ width }}>
       <div className="file-tree-toolbar">
         <div className="tree-toolbar-left">
+          <button className="tree-toolbar-btn" onClick={() => setCollapsed(true)} title="折叠文件树">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="11 17 6 12 11 7" />
+              <polyline points="18 17 13 12 18 7" />
+            </svg>
+          </button>
           <button className="tree-toolbar-btn" onClick={expandAll} title="展开全部">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M6 9l6 6 6-6"/>

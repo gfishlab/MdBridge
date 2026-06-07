@@ -125,6 +125,14 @@ html, body, #root {
   max-width: 600px;
 }
 
+.file-tree-wrapper.collapsed {
+  min-width: 0;
+  max-width: none;
+  width: 36px;
+  align-items: center;
+  padding-top: 6px;
+}
+
 .file-tree-toolbar {
   display: flex;
   justify-content: space-between;

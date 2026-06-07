@@ -1,4 +1,5 @@
 import MDEditor from '@uiw/react-md-editor';
+import remarkCjkFriendly from 'remark-cjk-friendly';
 
 interface EditorProps {
   value: string;
@@ -14,6 +15,10 @@ export function Editor({ value, onChange }: EditorProps) {
         preview="live"
         height="100%"
         visibleDragbar={false}
+        previewOptions={{
+          // 修复中文 + 全角标点旁加粗/斜体语法失效问题（CommonMark flanking 缺陷）
+          remarkPlugins: [remarkCjkFriendly],
+        }}
       />
     </div>
   );
