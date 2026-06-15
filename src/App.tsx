@@ -10,6 +10,9 @@ import { Settings } from './components/Settings';
 import { Help } from './components/Help/Help';
 import './App.css';
 
+// How long after the user stops typing before edits are persisted to disk.
+const AUTO_SAVE_DELAY = 800;
+
 interface Config {
   image_cache_size_mb: number;
   default_platform: string;
@@ -35,6 +38,7 @@ function App() {
   const markdownRef = useRef(markdown);
   const hasLocalEditsRef = useRef(false);
   const externalReloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     currentFileRef.current = currentFile;
@@ -43,6 +47,13 @@ function App() {
   useEffect(() => {
     markdownRef.current = markdown;
   }, [markdown]);
+
+  // Cancel any pending auto-save on unmount so the timer does not leak.
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -69,7 +80,28 @@ function App() {
     checkStartupUpdates();
   }, []);
 
-  const handleNewFile = () => {
+  // Persist any pending debounced auto-save immediately. Called when the user
+  // switches files, opens a new file, or manually saves — so that edits to the
+  // current file are never lost when the active document changes. Uses refs
+  // (not closure-captured state) so the latest file path and content are used
+  // even if the surrounding handler was created during a previous render.
+  const flushSave = async () => {
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+      const path = currentFileRef.current;
+      if (!path) return;
+      try {
+        await invoke('write_file', { path, content: markdownRef.current });
+        hasLocalEditsRef.current = false;
+      } catch (err) {
+        setStatusMessage(`自动保存失败: ${err}`);
+      }
+    }
+  };
+
+  const handleNewFile = async () => {
+    await flushSave();
     setShowFileMenu(false);
     if (folderPath) {
       setNewFileTrigger(prev => prev + 1);
@@ -81,6 +113,7 @@ function App() {
   };
 
   const handleOpenFile = async () => {
+    await flushSave();
     const selected = await open({
       filters: [{ name: 'Markdown', extensions: ['md'] }],
     });
@@ -94,6 +127,7 @@ function App() {
   };
 
   const handleOpenFolder = async () => {
+    await flushSave();
     const selected = await open({ directory: true });
     if (selected) {
       const path = selected as string;
@@ -105,6 +139,7 @@ function App() {
   };
 
   const handleFileSelect = async (path: string) => {
+    await flushSave();
     const content = await invoke<string>('read_file', { path });
     setMarkdown(content);
     setCurrentFile(path);
@@ -112,6 +147,11 @@ function App() {
   };
 
   const handleSave = async () => {
+    // Cancel any pending auto-save so we don't write twice.
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
     if (currentFile) {
       await invoke('write_file', { path: currentFile, content: markdown });
       hasLocalEditsRef.current = false;
@@ -133,6 +173,27 @@ function App() {
   const handleEditorChange = (value: string) => {
     hasLocalEditsRef.current = true;
     setMarkdown(value);
+
+    // Schedule a debounced auto-save whenever editing a file that exists on
+    // disk. Untitled documents (no currentFile) are skipped — they still need
+    // an explicit "另存为" via handleSave.
+    const path = currentFileRef.current;
+    if (!path) return;
+
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(async () => {
+      autoSaveTimerRef.current = null;
+      // Re-check after the delay: the user may have switched files or already
+      // saved manually during the debounce window.
+      if (currentFileRef.current !== path || !hasLocalEditsRef.current) return;
+      try {
+        await invoke('write_file', { path, content: markdownRef.current });
+        hasLocalEditsRef.current = false;
+        setStatusMessage('已自动保存');
+      } catch (err) {
+        setStatusMessage(`自动保存失败: ${err}`);
+      }
+    }, AUTO_SAVE_DELAY);
   };
 
   useEffect(() => {

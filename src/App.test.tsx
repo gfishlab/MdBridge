@@ -49,6 +49,137 @@ describe('App', () => {
   });
 });
 
+describe('App debounced auto-save', () => {
+  it('auto-saves to disk after the user stops typing', async () => {
+    const FILE = '/test/auto.md';
+    vi.mocked(open).mockResolvedValue(FILE);
+
+    const writeCalls: Array<{ path: string; content: string }> = [];
+    vi.mocked(invoke).mockImplementation(((command: string, args?: unknown) => {
+      if (command === 'read_file') return Promise.resolve('initial');
+      if (command === 'write_file') {
+        const a = (args ?? {}) as { path: string; content: string };
+        writeCalls.push({ path: a.path, content: a.content });
+        return Promise.resolve(null);
+      }
+      return defaultInvoke(command);
+    }) as never);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '文件' }));
+    fireEvent.click(screen.getByRole('button', { name: '打开文件' }));
+
+    await screen.findByText(FILE);
+    expect(screen.getByTestId('editor')).toHaveValue('initial');
+
+    fireEvent.change(screen.getByTestId('editor'), {
+      target: { value: 'local edit' },
+    });
+
+    // Before the debounce window elapses, nothing has been written.
+    expect(writeCalls).toHaveLength(0);
+
+    // After the debounce window (800ms), the edit is persisted to disk.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 900));
+    });
+
+    expect(writeCalls).toHaveLength(1);
+    expect(writeCalls[0]).toEqual({ path: FILE, content: 'local edit' });
+    expect(screen.getByText('已自动保存')).toBeInTheDocument();
+  }, 10000);
+
+  it('flushes pending edits before switching to another file', async () => {
+    const FILE_A = '/test/a.md';
+    const FILE_B = '/test/b.md';
+
+    // Single global log to assert call ORDER between write and read.
+    const callLog: string[] = [];
+    vi.mocked(invoke).mockImplementation(((command: string, args?: unknown) => {
+      if (command === 'read_file') {
+        const a = (args ?? {}) as { path: string };
+        callLog.push(`read:${a.path}`);
+        if (a.path === FILE_A) return Promise.resolve('a-initial');
+        return Promise.resolve('b-initial');
+      }
+      if (command === 'write_file') {
+        const a = (args ?? {}) as { path: string; content: string };
+        callLog.push(`write:${a.path}:${a.content}`);
+        return Promise.resolve(null);
+      }
+      return defaultInvoke(command);
+    }) as never);
+
+    vi.mocked(open).mockResolvedValueOnce(FILE_A).mockResolvedValueOnce(FILE_B);
+
+    render(<App />);
+
+    // Open file A.
+    fireEvent.click(screen.getByRole('button', { name: '文件' }));
+    fireEvent.click(screen.getByRole('button', { name: '打开文件' }));
+    await screen.findByText(FILE_A);
+
+    // Edit without waiting for the debounce timer.
+    fireEvent.change(screen.getByTestId('editor'), {
+      target: { value: 'a-edited' },
+    });
+
+    // Open file B before 800ms elapses.
+    fireEvent.click(screen.getByRole('button', { name: '文件' }));
+    fireEvent.click(screen.getByRole('button', { name: '打开文件' }));
+    await screen.findByText(FILE_B);
+
+    // A must have been flushed (written) BEFORE B was read.
+    const aWriteIdx = callLog.indexOf(`write:${FILE_A}:a-edited`);
+    const bReadIdx = callLog.indexOf(`read:${FILE_B}`);
+    expect(aWriteIdx).toBeGreaterThanOrEqual(0);
+    expect(bReadIdx).toBeGreaterThanOrEqual(0);
+    expect(aWriteIdx).toBeLessThan(bReadIdx);
+  }, 10000);
+
+  it('does not double-save when manual save overlaps the debounce window', async () => {
+    const FILE = '/test/single.md';
+    vi.mocked(open).mockResolvedValue(FILE);
+
+    const writeCalls: string[] = [];
+    vi.mocked(invoke).mockImplementation(((command: string, args?: unknown) => {
+      if (command === 'read_file') return Promise.resolve('initial');
+      if (command === 'write_file') {
+        const a = (args ?? {}) as { path: string; content: string };
+        writeCalls.push(`${a.path}:${a.content}`);
+        return Promise.resolve(null);
+      }
+      return defaultInvoke(command);
+    }) as never);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '文件' }));
+    fireEvent.click(screen.getByRole('button', { name: '打开文件' }));
+    await screen.findByText(FILE);
+
+    // Type, which schedules a debounced save.
+    fireEvent.change(screen.getByTestId('editor'), {
+      target: { value: 'edited' },
+    });
+
+    // Manually save immediately (Cmd+S).
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 's', metaKey: true });
+      await Promise.resolve();
+    });
+
+    // Let the debounce window elapse — the pending timer must NOT fire again.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 900));
+    });
+
+    // write_file should have been called exactly once for this content.
+    expect(writeCalls).toEqual([`${FILE}:edited`]);
+  }, 10000);
+});
+
 describe('App external reload race', () => {
   it('does not clobber a keystroke that lands while an external reload is mid-read', async () => {
     const FILE = '/test/file.md';
