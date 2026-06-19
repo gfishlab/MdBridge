@@ -24,35 +24,70 @@ interface FileSystemChange {
   paths: string[];
 }
 
+interface DocumentTab {
+  id: string;
+  path: string;
+  content: string;
+  hasLocalEdits: boolean;
+}
+
+interface TabContextMenuState {
+  tabId: string;
+  x: number;
+  y: number;
+}
+
 export function getStartupFileFromSearch(search = window.location.search): string {
   return new URLSearchParams(search).get('file') ?? '';
 }
 
+function getFileName(path: string): string {
+  return path.split(/[\\/]/).pop() || path;
+}
+
+function getTabTitle(tab: DocumentTab): string {
+  return tab.path ? getFileName(tab.path) : '未命名';
+}
+
 function App() {
   const startupFileRef = useRef(getStartupFileFromSearch());
-  const [markdown, setMarkdown] = useState(DEFAULT_MARKDOWN);
+  const nextTabIdRef = useRef(2);
+  const [tabs, setTabs] = useState<DocumentTab[]>([
+    {
+      id: 'tab-1',
+      path: '',
+      content: DEFAULT_MARKDOWN,
+      hasLocalEdits: false,
+    },
+  ]);
+  const [activeTabId, setActiveTabId] = useState('tab-1');
   const [statusMessage, setStatusMessage] = useState('');
-  const [currentFile, setCurrentFile] = useState('');
   const [folderPath, setFolderPath] = useState('');
   const [showFileTree, setShowFileTree] = useState(false);
   const [showFileMenu, setShowFileMenu] = useState(false);
-  const [newFileTrigger, setNewFileTrigger] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [tabContextMenu, setTabContextMenu] = useState<TabContextMenuState | null>(null);
   const fileMenuRef = useRef<HTMLDivElement>(null);
+  const tabsRef = useRef(tabs);
+  const activeTabIdRef = useRef(activeTabId);
   const currentFileRef = useRef('');
-  const markdownRef = useRef(markdown);
+  const markdownRef = useRef(DEFAULT_MARKDOWN);
   const hasLocalEditsRef = useRef(false);
   const externalReloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    currentFileRef.current = currentFile;
-  }, [currentFile]);
+  const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
+  const markdown = activeTab?.content ?? '';
+  const currentFile = activeTab?.path ?? '';
 
   useEffect(() => {
-    markdownRef.current = markdown;
-  }, [markdown]);
+    tabsRef.current = tabs;
+    activeTabIdRef.current = activeTabId;
+    currentFileRef.current = activeTab?.path ?? '';
+    markdownRef.current = activeTab?.content ?? '';
+    hasLocalEditsRef.current = activeTab?.hasLocalEdits ?? false;
+  }, [tabs, activeTabId, activeTab]);
 
   // Cancel any pending auto-save on unmount so the timer does not leak.
   useEffect(() => {
@@ -66,6 +101,7 @@ function App() {
       if (fileMenuRef.current && !fileMenuRef.current.contains(e.target as Node)) {
         setShowFileMenu(false);
       }
+      setTabContextMenu(null);
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -94,9 +130,11 @@ function App() {
     invoke<string>('read_file', { path: startupFile })
       .then((content) => {
         if (cancelled) return;
-        setMarkdown(content);
-        setCurrentFile(startupFile);
-        hasLocalEditsRef.current = false;
+        setTabs((prev) => prev.map((tab) => (
+          tab.id === activeTabIdRef.current
+            ? { ...tab, path: startupFile, content, hasLocalEdits: false }
+            : tab
+        )));
       })
       .catch((err) => {
         if (!cancelled) setStatusMessage(`打开启动文件失败: ${err}`);
@@ -107,48 +145,82 @@ function App() {
     };
   }, []);
 
+  const createTabId = () => {
+    const id = `tab-${nextTabIdRef.current}`;
+    nextTabIdRef.current += 1;
+    return id;
+  };
+
+  const updateTab = (tabId: string, updater: (tab: DocumentTab) => DocumentTab) => {
+    setTabs((prev) => prev.map((tab) => (tab.id === tabId ? updater(tab) : tab)));
+  };
+
+  const updateActiveTab = (updater: (tab: DocumentTab) => DocumentTab) => {
+    const tabId = activeTabIdRef.current;
+    updateTab(tabId, updater);
+  };
+
+  const activeTabCanBeReplaced = () => {
+    const tab = tabsRef.current.find((item) => item.id === activeTabIdRef.current);
+    if (!tab) return false;
+    return !tab.path && !tab.hasLocalEdits && (tab.content === DEFAULT_MARKDOWN || tab.content === '');
+  };
+
   // Persist any pending debounced auto-save immediately. Called when the user
-  // switches files, opens a new file, or manually saves — so that edits to the
-  // current file are never lost when the active document changes. Uses refs
-  // (not closure-captured state) so the latest file path and content are used
-  // even if the surrounding handler was created during a previous render.
+  // switches tabs, opens a new file, or manually saves — so that edits to the
+  // active file are never lost when the visible document changes. Uses refs
+  // (not closure-captured state) so the latest tab, path, and content are used.
   const flushSave = async () => {
     if (autoSaveTimerRef.current) {
       clearTimeout(autoSaveTimerRef.current);
       autoSaveTimerRef.current = null;
+      const tabId = activeTabIdRef.current;
       const path = currentFileRef.current;
       if (!path) return;
       try {
         await invoke('write_file', { path, content: markdownRef.current });
-        hasLocalEditsRef.current = false;
+        updateTab(tabId, (tab) => ({ ...tab, hasLocalEdits: false }));
       } catch (err) {
         setStatusMessage(`自动保存失败: ${err}`);
       }
     }
   };
 
-  const handleNewFile = async () => {
+  const openDocumentInTab = async (path: string) => {
     await flushSave();
-    setShowFileMenu(false);
-    if (folderPath) {
-      setNewFileTrigger(prev => prev + 1);
+
+    const existingTab = tabsRef.current.find((tab) => tab.path === path);
+    if (existingTab) {
+      setActiveTabId(existingTab.id);
+      return;
+    }
+
+    const content = await invoke<string>('read_file', { path });
+    if (activeTabCanBeReplaced()) {
+      const tabId = activeTabIdRef.current;
+      updateTab(tabId, () => ({ id: tabId, path, content, hasLocalEdits: false }));
     } else {
-      setMarkdown('');
-      setCurrentFile('');
-      setStatusMessage('新建文档');
+      const tabId = createTabId();
+      setTabs((prev) => [...prev, { id: tabId, path, content, hasLocalEdits: false }]);
+      setActiveTabId(tabId);
     }
   };
 
-  const handleOpenFile = async () => {
+  const handleNewFile = async () => {
     await flushSave();
+    setShowFileMenu(false);
+    const tabId = createTabId();
+    setTabs((prev) => [...prev, { id: tabId, path: '', content: '', hasLocalEdits: false }]);
+    setActiveTabId(tabId);
+    setStatusMessage('新建标签页');
+  };
+
+  const handleOpenFile = async () => {
     const selected = await open({
       filters: [{ name: 'Markdown', extensions: ['md'] }],
     });
     if (selected) {
-      const content = await invoke<string>('read_file', { path: selected });
-      setMarkdown(content);
-      setCurrentFile(selected as string);
-      hasLocalEditsRef.current = false;
+      await openDocumentInTab(selected as string);
       setShowFileMenu(false);
     }
   };
@@ -184,11 +256,7 @@ function App() {
   };
 
   const handleFileSelect = async (path: string) => {
-    await flushSave();
-    const content = await invoke<string>('read_file', { path });
-    setMarkdown(content);
-    setCurrentFile(path);
-    hasLocalEditsRef.current = false;
+    await openDocumentInTab(path);
   };
 
   const handleSave = async () => {
@@ -197,18 +265,25 @@ function App() {
       clearTimeout(autoSaveTimerRef.current);
       autoSaveTimerRef.current = null;
     }
-    if (currentFile) {
-      await invoke('write_file', { path: currentFile, content: markdown });
-      hasLocalEditsRef.current = false;
+    const tabId = activeTabIdRef.current;
+    const tab = tabsRef.current.find((item) => item.id === tabId);
+    if (!tab) return;
+
+    if (tab.path) {
+      await invoke('write_file', { path: tab.path, content: tab.content });
+      updateTab(tabId, (item) => ({ ...item, hasLocalEdits: false }));
       setStatusMessage('已保存');
     } else {
       const selected = await save({
         filters: [{ name: 'Markdown', extensions: ['md'] }],
       });
       if (selected) {
-        await invoke('write_file', { path: selected, content: markdown });
-        setCurrentFile(selected as string);
-        hasLocalEditsRef.current = false;
+        await invoke('write_file', { path: selected, content: tab.content });
+        updateTab(tabId, (item) => ({
+          ...item,
+          path: selected as string,
+          hasLocalEdits: false,
+        }));
         setStatusMessage('已保存');
       }
     }
@@ -216,8 +291,13 @@ function App() {
   };
 
   const handleEditorChange = (value: string) => {
+    const tabId = activeTabIdRef.current;
+    markdownRef.current = value;
     hasLocalEditsRef.current = true;
-    setMarkdown(value);
+    tabsRef.current = tabsRef.current.map((tab) => (
+      tab.id === tabId ? { ...tab, content: value, hasLocalEdits: true } : tab
+    ));
+    updateTab(tabId, (tab) => ({ ...tab, content: value, hasLocalEdits: true }));
 
     // Schedule a debounced auto-save whenever editing a file that exists on
     // disk. Untitled documents (no currentFile) are skipped — they still need
@@ -233,7 +313,7 @@ function App() {
       if (currentFileRef.current !== path || !hasLocalEditsRef.current) return;
       try {
         await invoke('write_file', { path, content: markdownRef.current });
-        hasLocalEditsRef.current = false;
+        updateTab(tabId, (tab) => ({ ...tab, hasLocalEdits: false }));
         setStatusMessage('已自动保存');
       } catch (err) {
         setStatusMessage(`自动保存失败: ${err}`);
@@ -266,7 +346,7 @@ function App() {
         // read window must not be clobbered by stale external content.
         if (hasLocalEditsRef.current || currentFileRef.current !== activeFile) return;
         if (content !== markdownRef.current) {
-          setMarkdown(content);
+          updateActiveTab((tab) => ({ ...tab, content }));
           setStatusMessage('已刷新外部修改');
         }
       } catch {
@@ -299,7 +379,7 @@ function App() {
           // Re-check after the async read: a keystroke or file switch during the
           // read window must not be clobbered by stale external content.
           if (hasLocalEditsRef.current || currentFileRef.current !== activeFile) return;
-          setMarkdown(content);
+          updateActiveTab((tab) => ({ ...tab, content }));
           setStatusMessage('已刷新外部修改');
         } catch (err) {
           setStatusMessage(`刷新文件失败: ${err}`);
@@ -325,6 +405,84 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentFile, markdown]);
 
+  const handleTabSelect = async (tabId: string) => {
+    if (tabId === activeTabIdRef.current) return;
+    await flushSave();
+    setActiveTabId(tabId);
+  };
+
+  const closeTabs = async (tabIds: string[], fallbackActiveTabId?: string) => {
+    const tabIdSet = new Set(tabIds);
+    setTabContextMenu(null);
+    if (tabIdSet.size === 0) return;
+
+    const activeBeforeClose = activeTabIdRef.current;
+    if (tabIdSet.has(activeBeforeClose)) await flushSave();
+
+    setTabs((prev) => {
+      const nextTabs = prev.filter((tab) => !tabIdSet.has(tab.id));
+      if (nextTabs.length === 0) {
+        const replacementId = createTabId();
+        setActiveTabId(replacementId);
+        return [{ id: replacementId, path: '', content: DEFAULT_MARKDOWN, hasLocalEdits: false }];
+      }
+
+      if (!nextTabs.some((tab) => tab.id === activeBeforeClose)) {
+        const fallbackTab = nextTabs.find((tab) => tab.id === fallbackActiveTabId);
+        if (fallbackTab) {
+          setActiveTabId(fallbackTab.id);
+        } else {
+          const closingIndex = prev.findIndex((tab) => tab.id === activeBeforeClose);
+          const nextIndex = Math.min(Math.max(closingIndex, 0), nextTabs.length - 1);
+          setActiveTabId(nextTabs[nextIndex].id);
+        }
+      }
+
+      return nextTabs;
+    });
+  };
+
+  const handleTabClose = async (tabId: string) => {
+    await closeTabs([tabId]);
+  };
+
+  const getContextMenuTabIndex = () => {
+    if (!tabContextMenu) return -1;
+    return tabs.findIndex((tab) => tab.id === tabContextMenu.tabId);
+  };
+
+  const handleCloseOtherTabs = async () => {
+    if (!tabContextMenu) return;
+    const targetTabId = tabContextMenu.tabId;
+    await closeTabs(
+      tabsRef.current.filter((tab) => tab.id !== targetTabId).map((tab) => tab.id),
+      targetTabId,
+    );
+    setActiveTabId(targetTabId);
+  };
+
+  const handleCloseLeftTabs = async () => {
+    const targetIndex = getContextMenuTabIndex();
+    if (!tabContextMenu || targetIndex < 0) return;
+    await closeTabs(
+      tabsRef.current.slice(0, targetIndex).map((tab) => tab.id),
+      tabContextMenu.tabId,
+    );
+  };
+
+  const handleCloseRightTabs = async () => {
+    const targetIndex = getContextMenuTabIndex();
+    if (!tabContextMenu || targetIndex < 0) return;
+    await closeTabs(
+      tabsRef.current.slice(targetIndex + 1).map((tab) => tab.id),
+      tabContextMenu.tabId,
+    );
+  };
+
+  const handleCloseAllTabs = async () => {
+    await closeTabs(tabsRef.current.map((tab) => tab.id));
+  };
+
   return (
     <div className="app">
       <header className="toolbar">
@@ -341,7 +499,7 @@ function App() {
             </button>
             {showFileMenu && (
               <div className="file-menu">
-                <button onClick={handleNewFile}>新建文档</button>
+                <button onClick={handleNewFile}>新建标签页</button>
                 <button onClick={handleOpenFile}>打开文件</button>
                 <button onClick={handleOpenFileInNewWindow}>在新窗口打开文件</button>
                 <button onClick={handleOpenFolder}>打开文件夹</button>
@@ -380,10 +538,75 @@ function App() {
             onFileSelect={handleFileSelect}
             onFileOpenInNewWindow={openFileInNewWindow}
             currentFile={currentFile}
-            newFileTrigger={newFileTrigger}
           />
         )}
         <main className="content">
+          <div className="tab-strip" role="tablist" aria-label="打开的文档">
+            {tabs.map((tab) => {
+              const title = getTabTitle(tab);
+              const active = tab.id === activeTabId;
+              return (
+                <div
+                  key={tab.id}
+                  className={`doc-tab ${active ? 'active' : ''}`}
+                  role="tab"
+                  aria-selected={active}
+                  title={tab.path || title}
+                  onClick={() => handleTabSelect(tab.id)}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    setShowFileMenu(false);
+                    setTabContextMenu({ tabId: tab.id, x: event.clientX, y: event.clientY });
+                  }}
+                >
+                  <span className="doc-tab-title">
+                    {tab.hasLocalEdits ? '* ' : ''}
+                    {title}
+                  </span>
+                  <button
+                    className="doc-tab-close"
+                    aria-label={`关闭 ${title}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleTabClose(tab.id);
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              );
+            })}
+            <button
+              className="doc-tab-add"
+              type="button"
+              aria-label="新建标签页"
+              title="新建标签页"
+              onClick={handleNewFile}
+            >
+              +
+            </button>
+          </div>
+          {tabContextMenu && (
+            <div
+              className="tab-context-menu"
+              role="menu"
+              style={{ top: tabContextMenu.y, left: tabContextMenu.x }}
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <button type="button" role="menuitem" onClick={handleCloseOtherTabs}>
+                关闭其他标签页
+              </button>
+              <button type="button" role="menuitem" onClick={handleCloseLeftTabs}>
+                关闭左侧标签页
+              </button>
+              <button type="button" role="menuitem" onClick={handleCloseRightTabs}>
+                关闭右侧标签页
+              </button>
+              <button type="button" role="menuitem" onClick={handleCloseAllTabs}>
+                关闭全部标签页
+              </button>
+            </div>
+          )}
           <Editor value={markdown} onChange={handleEditorChange} />
         </main>
       </div>

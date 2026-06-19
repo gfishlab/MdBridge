@@ -36,7 +36,6 @@ describe('FileTree live refresh', () => {
         folderPath="/tmp/docs"
         onFileSelect={vi.fn()}
         currentFile=""
-        newFileTrigger={0}
       />,
     );
 
@@ -77,7 +76,6 @@ describe('FileTree live refresh', () => {
         onFileSelect={onFileSelect}
         onFileOpenInNewWindow={onFileOpenInNewWindow}
         currentFile=""
-        newFileTrigger={0}
       />,
     );
 

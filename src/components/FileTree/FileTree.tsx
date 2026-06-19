@@ -14,7 +14,6 @@ interface FileTreeProps {
   onFileSelect: (path: string) => void;
   onFileOpenInNewWindow?: (path: string) => void;
   currentFile: string;
-  newFileTrigger: number;
 }
 
 interface FileSystemChange {
@@ -62,7 +61,6 @@ export function FileTree({
   onFileSelect,
   onFileOpenInNewWindow,
   currentFile,
-  newFileTrigger,
 }: FileTreeProps) {
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
@@ -112,12 +110,6 @@ export function FileTree({
       unlisten.then((fn) => fn());
     };
   }, [folderPath, loadFiles]);
-
-  useEffect(() => {
-    if (newFileTrigger > 0) {
-      handleNewFile();
-    }
-  }, [newFileTrigger]);
 
   const handleNewFile = () => {
     setShowNewFileInput(true);

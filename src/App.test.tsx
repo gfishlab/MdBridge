@@ -2,7 +2,7 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { open } from '@tauri-apps/plugin-dialog';
+import { open, save } from '@tauri-apps/plugin-dialog';
 import App, { getStartupFileFromSearch } from './App';
 
 // Render the editor as a plain controlled textarea so tests can drive
@@ -34,11 +34,21 @@ function defaultInvoke(command: string) {
 }
 
 afterEach(() => {
+  vi.mocked(invoke).mockReset();
   vi.mocked(invoke).mockImplementation(defaultInvoke as never);
+  vi.mocked(listen).mockReset();
   vi.mocked(listen).mockImplementation(() => Promise.resolve(() => {}));
+  vi.mocked(open).mockReset();
   vi.mocked(open).mockResolvedValue(null);
+  vi.mocked(save).mockReset();
+  vi.mocked(save).mockResolvedValue(null);
   window.history.pushState({}, '', '/');
 });
+
+async function openSelectedMarkdownFile() {
+  fireEvent.click(screen.getByRole('button', { name: '文件' }));
+  fireEvent.click(await screen.findByRole('button', { name: '打开文件' }));
+}
 
 describe('App', () => {
   it('renders the toolbar actions', () => {
@@ -85,6 +95,179 @@ describe('App', () => {
       expect(invoke).toHaveBeenCalledWith('open_file_in_new_window', { path: FILE });
     });
     expect(screen.getByText('已在新窗口打开')).toBeInTheDocument();
+  });
+
+  it('opens multiple markdown files as tabs in the same window', async () => {
+    const FILE_A = '/test/a.md';
+    const FILE_B = '/test/b.md';
+    vi.mocked(open).mockResolvedValueOnce(FILE_A).mockResolvedValueOnce(FILE_B);
+
+    vi.mocked(invoke).mockImplementation(((command: string, args?: unknown) => {
+      if (command === 'read_file') {
+        const a = (args ?? {}) as { path: string };
+        return Promise.resolve(`${a.path} content`);
+      }
+      return defaultInvoke(command);
+    }) as never);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '文件' }));
+    fireEvent.click(screen.getByRole('button', { name: '打开文件' }));
+    await screen.findByText(FILE_A);
+
+    fireEvent.click(screen.getByRole('button', { name: '文件' }));
+    fireEvent.click(screen.getByRole('button', { name: '打开文件' }));
+    await screen.findByText(FILE_B);
+
+    expect(screen.getByRole('tab', { name: /a\.md/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /b\.md/ })).toBeInTheDocument();
+    expect(screen.getByTestId('editor')).toHaveValue(`${FILE_B} content`);
+
+    fireEvent.click(screen.getByRole('tab', { name: /a\.md/ }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('editor')).toHaveValue(`${FILE_A} content`);
+    });
+  });
+
+  it('activates an existing tab when the same markdown file is opened again', async () => {
+    const FILE = '/test/same.md';
+    vi.mocked(open).mockResolvedValueOnce(FILE).mockResolvedValueOnce(FILE);
+
+    vi.mocked(invoke).mockImplementation(((command: string) => {
+      if (command === 'read_file') return Promise.resolve('same file content');
+      return defaultInvoke(command);
+    }) as never);
+
+    render(<App />);
+
+    await openSelectedMarkdownFile();
+    await screen.findByText(FILE);
+
+    await openSelectedMarkdownFile();
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('tab', { name: /same\.md/ })).toHaveLength(1);
+    });
+  });
+
+  it('restores a default untitled tab after closing the final tab', async () => {
+    const FILE = '/test/final.md';
+    vi.mocked(open).mockResolvedValue(FILE);
+
+    vi.mocked(invoke).mockImplementation(((command: string) => {
+      if (command === 'read_file') return Promise.resolve('final content');
+      return defaultInvoke(command);
+    }) as never);
+
+    render(<App />);
+
+    await openSelectedMarkdownFile();
+    await screen.findByText(FILE);
+
+    fireEvent.click(screen.getByRole('button', { name: '关闭 final.md' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /未命名/ })).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('editor')).toHaveValue('# Hello MDBridge\n\nStart writing...');
+  });
+
+  it('supports tab context menu batch close actions', async () => {
+    const FILE_A = '/test/a.md';
+    const FILE_B = '/test/b.md';
+    const FILE_C = '/test/c.md';
+    vi.mocked(open)
+      .mockResolvedValueOnce(FILE_A)
+      .mockResolvedValueOnce(FILE_B)
+      .mockResolvedValueOnce(FILE_C)
+      .mockResolvedValueOnce(FILE_C)
+      .mockResolvedValueOnce(FILE_A);
+
+    vi.mocked(invoke).mockImplementation(((command: string, args?: unknown) => {
+      if (command === 'read_file') {
+        const a = (args ?? {}) as { path: string };
+        return Promise.resolve(`${a.path} content`);
+      }
+      return defaultInvoke(command);
+    }) as never);
+
+    render(<App />);
+
+    await openSelectedMarkdownFile();
+    await screen.findByText(FILE_A);
+
+    await openSelectedMarkdownFile();
+    await screen.findByText(FILE_B);
+
+    await openSelectedMarkdownFile();
+    await screen.findByText(FILE_C);
+
+    fireEvent.contextMenu(screen.getByRole('tab', { name: /b\.md/ }));
+    fireEvent.click(screen.getByRole('menuitem', { name: '关闭右侧标签页' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('tab', { name: /c\.md/ })).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole('tab', { name: /a\.md/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /b\.md/ })).toBeInTheDocument();
+
+    await openSelectedMarkdownFile();
+    await screen.findByText(FILE_C);
+
+    fireEvent.contextMenu(screen.getByRole('tab', { name: /b\.md/ }));
+    fireEvent.click(screen.getByRole('menuitem', { name: '关闭左侧标签页' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('tab', { name: /a\.md/ })).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole('tab', { name: /b\.md/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /c\.md/ })).toBeInTheDocument();
+
+    await openSelectedMarkdownFile();
+    await screen.findByText(FILE_A);
+
+    fireEvent.contextMenu(screen.getByRole('tab', { name: /c\.md/ }));
+    fireEvent.click(screen.getByRole('menuitem', { name: '关闭其他标签页' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('tab', { name: /a\.md/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('tab', { name: /b\.md/ })).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole('tab', { name: /c\.md/ })).toBeInTheDocument();
+    expect(screen.getByTestId('editor')).toHaveValue(`${FILE_C} content`);
+  });
+
+  it('closes all tabs from the tab context menu', async () => {
+    const FILE_A = '/test/a.md';
+    const FILE_B = '/test/b.md';
+    vi.mocked(open).mockResolvedValueOnce(FILE_A).mockResolvedValueOnce(FILE_B);
+
+    vi.mocked(invoke).mockImplementation(((command: string, args?: unknown) => {
+      if (command === 'read_file') {
+        const a = (args ?? {}) as { path: string };
+        return Promise.resolve(`${a.path} content`);
+      }
+      return defaultInvoke(command);
+    }) as never);
+
+    render(<App />);
+
+    await openSelectedMarkdownFile();
+    await screen.findByText(FILE_A);
+
+    await openSelectedMarkdownFile();
+    await screen.findByText(FILE_B);
+
+    fireEvent.contextMenu(screen.getByRole('tab', { name: /a\.md/ }));
+    fireEvent.click(screen.getByRole('menuitem', { name: '关闭全部标签页' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /未命名/ })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('tab', { name: /a\.md/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /b\.md/ })).not.toBeInTheDocument();
   });
 });
 
