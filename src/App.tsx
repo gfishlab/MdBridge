@@ -44,6 +44,10 @@ export function getStartupFileFromSearch(search = window.location.search): strin
   return new URLSearchParams(search).get('file') ?? '';
 }
 
+export function getStartupFolderFromSearch(search = window.location.search): string {
+  return new URLSearchParams(search).get('folder') ?? '';
+}
+
 function getFileName(path: string): string {
   return path.split(/[\\/]/).pop() || path;
 }
@@ -58,6 +62,7 @@ function addRecentPath(items: string[], path: string): string[] {
 
 function App() {
   const startupFileRef = useRef(getStartupFileFromSearch());
+  const startupFolderRef = useRef(getStartupFolderFromSearch());
   const nextTabIdRef = useRef(2);
   const [tabs, setTabs] = useState<DocumentTab[]>([
     {
@@ -164,6 +169,15 @@ function App() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    const startupFolder = startupFolderRef.current;
+    if (!startupFolder) return;
+
+    openFolderPath(startupFolder).catch((err) => {
+      setStatusMessage(`打开启动文件夹失败: ${err}`);
+    });
   }, []);
 
   const createTabId = () => {
@@ -278,6 +292,13 @@ function App() {
     setStatusMessage('新建标签页');
   };
 
+  const handleNewWindow = async () => {
+    await flushSave();
+    await invoke('open_new_window');
+    setShowFileMenu(false);
+    setStatusMessage('已打开新窗口');
+  };
+
   const handleOpenFile = async () => {
     const selected = await open({
       filters: [{ name: 'Markdown', extensions: ['md'] }],
@@ -304,6 +325,17 @@ function App() {
       await invoke('open_file_in_new_window', { path: selected });
       rememberRecentFile(selected as string);
       setStatusMessage('已在新窗口打开');
+      setShowFileMenu(false);
+    }
+  };
+
+  const handleOpenFolderInNewWindow = async () => {
+    await flushSave();
+    const selected = await open({ directory: true });
+    if (selected) {
+      await invoke('open_folder_in_new_window', { path: selected });
+      rememberRecentFolder(selected as string);
+      setStatusMessage('已在新窗口打开文件夹');
       setShowFileMenu(false);
     }
   };
@@ -578,9 +610,11 @@ function App() {
             {showFileMenu && (
               <div className="file-menu">
                 <button onClick={handleNewFile}>新建标签页</button>
+                <button onClick={handleNewWindow}>新建窗口</button>
                 <button onClick={handleOpenFile}>打开文件</button>
                 <button onClick={handleOpenFileInNewWindow}>在新窗口打开文件</button>
                 <button onClick={handleOpenFolder}>打开文件夹</button>
+                <button onClick={handleOpenFolderInNewWindow}>在新窗口打开文件夹</button>
                 <button onClick={handleSave}>保存</button>
                 {(recentFiles.length > 0 || recentFolders.length > 0) && (
                   <>

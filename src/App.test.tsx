@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { open, save } from '@tauri-apps/plugin-dialog';
-import App, { getStartupFileFromSearch } from './App';
+import App, { getStartupFileFromSearch, getStartupFolderFromSearch } from './App';
 
 // Render the editor as a plain controlled textarea so tests can drive
 // keystrokes deterministically instead of fighting the real MDEditor.
@@ -66,6 +66,11 @@ describe('App', () => {
     expect(getStartupFileFromSearch(`?file=${encodeURIComponent(path)}`)).toBe(path);
   });
 
+  it('parses startup folder paths from the window query string', () => {
+    const path = '/test/中文 folder';
+    expect(getStartupFolderFromSearch(`?folder=${encodeURIComponent(path)}`)).toBe(path);
+  });
+
   it('loads the startup file passed to a document window', async () => {
     const FILE = '/test/startup.md';
     window.history.pushState({}, '', `/?file=${encodeURIComponent(FILE)}`);
@@ -84,6 +89,40 @@ describe('App', () => {
     expect(screen.getByTestId('editor')).toHaveValue('startup content');
   });
 
+  it('opens the startup folder passed to a document window', async () => {
+    const FOLDER = '/test/startup-folder';
+    window.history.pushState({}, '', `/?folder=${encodeURIComponent(FOLDER)}`);
+
+    vi.mocked(invoke).mockImplementation(((command: string) => {
+      if (command === 'read_folder') return Promise.resolve([]);
+      return defaultInvoke(command);
+    }) as never);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith('watch_folder', { path: FOLDER });
+      expect(invoke).toHaveBeenCalledWith('update_config', {
+        updates: {
+          recent_files: [],
+          recent_folders: [FOLDER],
+        },
+      });
+    });
+  });
+
+  it('opens a blank MDBridge window from the file menu', async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '文件' }));
+    fireEvent.click(screen.getByRole('button', { name: '新建窗口' }));
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith('open_new_window');
+    });
+    expect(screen.getByText('已打开新窗口')).toBeInTheDocument();
+  });
+
   it('opens a selected markdown file in a separate window', async () => {
     const FILE = '/test/new-window.md';
     vi.mocked(open).mockResolvedValue(FILE);
@@ -97,6 +136,27 @@ describe('App', () => {
       expect(invoke).toHaveBeenCalledWith('open_file_in_new_window', { path: FILE });
     });
     expect(screen.getByText('已在新窗口打开')).toBeInTheDocument();
+  });
+
+  it('opens a selected folder in a separate window', async () => {
+    const FOLDER = '/test/new-window-folder';
+    vi.mocked(open).mockResolvedValue(FOLDER);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '文件' }));
+    fireEvent.click(screen.getByRole('button', { name: '在新窗口打开文件夹' }));
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith('open_folder_in_new_window', { path: FOLDER });
+      expect(invoke).toHaveBeenCalledWith('update_config', {
+        updates: {
+          recent_files: [],
+          recent_folders: [FOLDER],
+        },
+      });
+    });
+    expect(screen.getByText('已在新窗口打开文件夹')).toBeInTheDocument();
   });
 
   it('opens multiple markdown files as tabs in the same window', async () => {

@@ -8,6 +8,7 @@ use comrak::Arena;
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::sync::{
@@ -15,14 +16,14 @@ use std::sync::{
     Mutex,
 };
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Emitter, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 static DOCUMENT_WINDOW_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 pub struct AppState {
     pub config: Mutex<AppConfig>,
     pub image_cache: Mutex<ImageCache>,
-    pub folder_watcher: Mutex<Option<RecommendedWatcher>>,
+    pub folder_watchers: Mutex<HashMap<String, RecommendedWatcher>>,
 }
 
 #[derive(Serialize)]
@@ -144,6 +145,11 @@ pub fn read_file(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+pub async fn open_new_window(app: AppHandle) -> Result<(), String> {
+    open_document_window(app, None, None)
+}
+
+#[tauri::command]
 pub async fn open_file_in_new_window(path: String, app: AppHandle) -> Result<(), String> {
     let file_path = Path::new(&path);
     if !file_path.is_file() {
@@ -158,28 +164,62 @@ pub async fn open_file_in_new_window(path: String, app: AppHandle) -> Result<(),
     }
 
     let canonical_path = file_path.canonicalize().map_err(|e| e.to_string())?;
-    let path_string = canonical_path.to_string_lossy().to_string();
-    let encoded_path = utf8_percent_encode(&path_string, NON_ALPHANUMERIC).to_string();
     let title = canonical_path
         .file_name()
         .and_then(|name| name.to_str())
         .map(|name| format!("{} - MDBridge", name))
         .unwrap_or_else(|| "MDBridge".into());
 
-    // Each document window owns its own React state. The file path is passed
-    // through the app URL so future platform-specific launch hooks can create
-    // the same kind of window without sharing state with the main tray window.
-    let window = WebviewWindowBuilder::new(
-        &app,
-        new_document_window_label(),
-        WebviewUrl::App(format!("index.html?file={}", encoded_path).into()),
+    open_document_window(
+        app,
+        Some(("file", canonical_path.to_string_lossy().as_ref())),
+        Some(title),
     )
-    .title(title)
-    .inner_size(1200.0, 800.0)
-    .resizable(true)
-    .focused(true)
-    .build()
-    .map_err(|e| e.to_string())?;
+}
+
+#[tauri::command]
+pub async fn open_folder_in_new_window(path: String, app: AppHandle) -> Result<(), String> {
+    let folder_path = Path::new(&path);
+    if !folder_path.is_dir() {
+        return Err("只能在新窗口打开已存在的文件夹".into());
+    }
+
+    let canonical_path = folder_path.canonicalize().map_err(|e| e.to_string())?;
+    let title = canonical_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| format!("{} - MDBridge", name))
+        .unwrap_or_else(|| "MDBridge".into());
+
+    open_document_window(
+        app,
+        Some(("folder", canonical_path.to_string_lossy().as_ref())),
+        Some(title),
+    )
+}
+
+fn open_document_window(
+    app: AppHandle,
+    launch_param: Option<(&str, &str)>,
+    title: Option<String>,
+) -> Result<(), String> {
+    // Each MDBridge window owns independent React state. Optional launch
+    // parameters only seed the initial file or folder and do not couple window
+    // state, so future platform integrations can add their own launch flows.
+    let url = if let Some((key, value)) = launch_param {
+        let encoded_path = utf8_percent_encode(value, NON_ALPHANUMERIC).to_string();
+        WebviewUrl::App(format!("index.html?{}={}", key, encoded_path).into())
+    } else {
+        WebviewUrl::App("index.html".into())
+    };
+
+    let window = WebviewWindowBuilder::new(&app, new_document_window_label(), url)
+        .title(title.unwrap_or_else(|| "MDBridge".into()))
+        .inner_size(1200.0, 800.0)
+        .resizable(true)
+        .focused(true)
+        .build()
+        .map_err(|e| e.to_string())?;
 
     let _ = window.show();
     let _ = window.unminimize();
@@ -227,6 +267,7 @@ pub struct FileSystemChange {
 pub fn watch_folder(
     path: String,
     app: AppHandle,
+    window: WebviewWindow,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let folder_path = Path::new(&path);
@@ -262,15 +303,15 @@ pub fn watch_folder(
         .watch(folder_path, RecursiveMode::Recursive)
         .map_err(|e| e.to_string())?;
 
-    let mut current_watcher = state.folder_watcher.lock().unwrap();
-    *current_watcher = Some(watcher);
+    let mut current_watchers = state.folder_watchers.lock().unwrap();
+    current_watchers.insert(window.label().to_string(), watcher);
     Ok(())
 }
 
 #[tauri::command]
-pub fn unwatch_folder(state: State<'_, AppState>) {
-    let mut current_watcher = state.folder_watcher.lock().unwrap();
-    *current_watcher = None;
+pub fn unwatch_folder(window: WebviewWindow, state: State<'_, AppState>) {
+    let mut current_watchers = state.folder_watchers.lock().unwrap();
+    current_watchers.remove(window.label());
 }
 
 #[derive(Serialize)]

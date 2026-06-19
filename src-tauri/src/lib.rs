@@ -12,7 +12,9 @@ pub mod test_utils;
 use commands::AppState;
 use config::AppConfig;
 use image_cache::ImageCache;
+use std::collections::HashMap;
 use std::sync::Mutex;
+use tauri::Manager;
 
 pub fn run() {
     let config = AppConfig::load();
@@ -24,13 +26,15 @@ pub fn run() {
         .manage(AppState {
             config: Mutex::new(config),
             image_cache: Mutex::new(ImageCache::new(cache_size)),
-            folder_watcher: Mutex::new(None),
+            folder_watchers: Mutex::new(HashMap::new()),
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_platforms,
             commands::convert_and_copy,
             commands::read_file,
+            commands::open_new_window,
             commands::open_file_in_new_window,
+            commands::open_folder_in_new_window,
             commands::write_file,
             commands::delete_file,
             commands::read_folder,
@@ -57,6 +61,10 @@ pub fn run() {
                 if window.label() == "main" {
                     let _ = window.hide();
                     api.prevent_close();
+                } else {
+                    let state = window.state::<AppState>();
+                    let mut folder_watchers = state.folder_watchers.lock().unwrap();
+                    folder_watchers.remove(window.label());
                 }
             }
         })
