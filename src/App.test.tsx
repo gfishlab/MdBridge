@@ -8,9 +8,18 @@ import App, { getStartupFileFromSearch, getStartupFolderFromSearch } from './App
 // Render the editor as a plain controlled textarea so tests can drive
 // keystrokes deterministically instead of fighting the real MDEditor.
 vi.mock('./components/Editor', () => ({
-  Editor: ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
+  Editor: ({
+    value,
+    onChange,
+    colorMode,
+  }: {
+    value: string;
+    onChange: (v: string) => void;
+    colorMode: string;
+  }) => (
     <textarea
       data-testid="editor"
+      data-color-mode={colorMode}
       value={value}
       onChange={(e) => onChange(e.target.value)}
     />
@@ -26,6 +35,8 @@ function defaultInvoke(command: string) {
         image_cache_size_mb: 500,
         default_platform: 'wechat',
         check_updates_on_startup: false,
+        theme_preference: 'system',
+        text_style: 'standard',
         recent_files: [],
         recent_folders: [],
       });
@@ -59,6 +70,92 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: /发布/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /设置/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /帮助/ })).toBeInTheDocument();
+  });
+
+  it('applies configured theme and text style on startup', async () => {
+    vi.mocked(invoke).mockImplementation(((command: string) => {
+      if (command === 'get_config') {
+        return Promise.resolve({
+          image_cache_size_mb: 500,
+          default_platform: 'wechat',
+          check_updates_on_startup: false,
+          theme_preference: 'dark',
+          text_style: 'large',
+          recent_files: [],
+          recent_folders: [],
+        });
+      }
+      return defaultInvoke(command);
+    }) as never);
+
+    const { container } = render(<App />);
+    const app = container.querySelector('.app');
+
+    await waitFor(() => {
+      expect(app).toHaveAttribute('data-theme', 'dark');
+      expect(app).toHaveAttribute('data-theme-appearance', 'dark');
+      expect(app).toHaveAttribute('data-text-style', 'large');
+      expect(screen.getByTestId('editor')).toHaveAttribute('data-color-mode', 'dark');
+    });
+  });
+
+  it('saves theme and text style from settings', async () => {
+    const { container } = render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: /设置/ }));
+    await screen.findByRole('heading', { name: '设置' });
+
+    const selects = screen.getAllByRole('combobox');
+    fireEvent.change(selects[0], { target: { value: 'solarized' } });
+    fireEvent.change(selects[1], { target: { value: 'comfortable' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith('update_config', {
+        updates: expect.objectContaining({
+          theme_preference: 'solarized',
+          text_style: 'comfortable',
+        }),
+      });
+      expect(container.querySelector('.app')).toHaveAttribute('data-theme', 'solarized');
+      expect(container.querySelector('.app')).toHaveAttribute('data-text-style', 'comfortable');
+    });
+  });
+
+  it('syncs appearance when another window updates config', async () => {
+    let configUpdatedHandler:
+      | ((event: { payload: {
+        theme_preference: string;
+        text_style: string;
+        recent_files: string[];
+        recent_folders: string[];
+      } }) => void)
+      | null = null;
+
+    vi.mocked(listen).mockImplementation((event: string, handler: unknown) => {
+      if (event === 'config-updated') {
+        configUpdatedHandler = handler as typeof configUpdatedHandler;
+      }
+      return Promise.resolve(() => {});
+    });
+
+    const { container } = render(<App />);
+    await waitFor(() => expect(configUpdatedHandler).not.toBeNull());
+
+    act(() => {
+      configUpdatedHandler?.({
+        payload: {
+          theme_preference: 'dark',
+          text_style: 'compact',
+          recent_files: [],
+          recent_folders: [],
+        },
+      });
+    });
+
+    expect(container.querySelector('.app')).toHaveAttribute('data-theme', 'dark');
+    expect(container.querySelector('.app')).toHaveAttribute('data-text-style', 'compact');
+    expect(screen.getByTestId('editor')).toHaveAttribute('data-color-mode', 'dark');
   });
 
   it('parses startup file paths from the window query string', () => {
@@ -234,6 +331,8 @@ describe('App', () => {
           image_cache_size_mb: 500,
           default_platform: 'wechat',
           check_updates_on_startup: false,
+          theme_preference: 'system',
+          text_style: 'standard',
           recent_files: [],
           recent_folders: [FOLDER],
         });

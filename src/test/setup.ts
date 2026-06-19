@@ -1,6 +1,20 @@
 import '@testing-library/jest-dom/vitest';
 import { vi } from 'vitest';
 
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});
+
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn((command: string) => {
     if (command === 'get_platforms') return Promise.resolve([]);
@@ -9,6 +23,8 @@ vi.mock('@tauri-apps/api/core', () => ({
         image_cache_size_mb: 500,
         default_platform: 'wechat',
         check_updates_on_startup: false,
+        theme_preference: 'system',
+        text_style: 'standard',
         recent_files: [],
         recent_folders: [],
       });

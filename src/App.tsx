@@ -8,6 +8,13 @@ import { FileTree } from './components/FileTree';
 import { UpdateDialog } from './components/UpdateDialog';
 import { Settings } from './components/Settings';
 import { Help } from './components/Help/Help';
+import {
+  normalizeTextStylePreference,
+  normalizeThemePreference,
+  resolveThemeAppearance,
+  type TextStylePreference,
+  type ThemePreference,
+} from './preferences';
 import './App.css';
 
 // How long after the user stops typing before edits are persisted to disk.
@@ -19,6 +26,8 @@ interface Config {
   image_cache_size_mb: number;
   default_platform: string;
   check_updates_on_startup: boolean;
+  theme_preference?: string;
+  text_style?: string;
   recent_files: string[];
   recent_folders: string[];
 }
@@ -82,6 +91,9 @@ function App() {
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const [recentFolders, setRecentFolders] = useState<string[]>([]);
   const [tabContextMenu, setTabContextMenu] = useState<TabContextMenuState | null>(null);
+  const [themePreference, setThemePreference] = useState<ThemePreference>('system');
+  const [textStyle, setTextStyle] = useState<TextStylePreference>('standard');
+  const [prefersDarkMode, setPrefersDarkMode] = useState(false);
   const fileMenuRef = useRef<HTMLDivElement>(null);
   const tabsRef = useRef(tabs);
   const activeTabIdRef = useRef(activeTabId);
@@ -96,6 +108,7 @@ function App() {
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
   const markdown = activeTab?.content ?? '';
   const currentFile = activeTab?.path ?? '';
+  const themeAppearance = resolveThemeAppearance(themePreference, prefersDarkMode);
 
   useEffect(() => {
     tabsRef.current = tabs;
@@ -112,6 +125,15 @@ function App() {
   useEffect(() => {
     recentFoldersRef.current = recentFolders;
   }, [recentFolders]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = () => setPrefersDarkMode(mediaQuery.matches);
+
+    handleChange();
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
 
   // Cancel any pending auto-save on unmount so the timer does not leak.
   useEffect(() => {
@@ -137,6 +159,8 @@ function App() {
         const config = await invoke<Config>('get_config');
         setRecentFiles(config.recent_files ?? []);
         setRecentFolders(config.recent_folders ?? []);
+        setThemePreference(normalizeThemePreference(config.theme_preference));
+        setTextStyle(normalizeTextStylePreference(config.text_style));
         if (config.check_updates_on_startup) {
           await invoke('check_for_updates');
         }
@@ -146,6 +170,20 @@ function App() {
     }
 
     checkStartupUpdates();
+  }, []);
+
+  useEffect(() => {
+    const unlisten = listen<Config>('config-updated', (event) => {
+      const config = event.payload;
+      setThemePreference(normalizeThemePreference(config.theme_preference));
+      setTextStyle(normalizeTextStylePreference(config.text_style));
+      setRecentFiles(config.recent_files ?? []);
+      setRecentFolders(config.recent_folders ?? []);
+    });
+
+    return () => {
+      unlisten.then((fn) => fn());
+    };
   }, []);
 
   useEffect(() => {
@@ -593,8 +631,22 @@ function App() {
     await closeTabs(tabsRef.current.map((tab) => tab.id));
   };
 
+  const handleSettingsSaved = (config: {
+    theme_preference?: string;
+    text_style?: string;
+  }) => {
+    setThemePreference(normalizeThemePreference(config.theme_preference));
+    setTextStyle(normalizeTextStylePreference(config.text_style));
+    setShowSettings(false);
+  };
+
   return (
-    <div className="app">
+    <div
+      className="app"
+      data-theme={themePreference}
+      data-theme-appearance={themeAppearance}
+      data-text-style={textStyle}
+    >
       <header className="toolbar">
         <div className="toolbar-left">
           <div className="file-menu-container" ref={fileMenuRef}>
@@ -753,7 +805,11 @@ function App() {
               </button>
             </div>
           )}
-          <Editor value={markdown} onChange={handleEditorChange} />
+          <Editor
+            value={markdown}
+            onChange={handleEditorChange}
+            colorMode={themeAppearance}
+          />
         </main>
       </div>
       <footer className="status-bar">
@@ -761,7 +817,12 @@ function App() {
         {currentFile && <span className="file-path">{currentFile}</span>}
       </footer>
       <UpdateDialog />
-      {showSettings && <Settings onClose={() => setShowSettings(false)} />}
+      {showSettings && (
+        <Settings
+          onClose={() => setShowSettings(false)}
+          onSaved={handleSettingsSaved}
+        />
+      )}
       {showHelp && <Help onClose={() => setShowHelp(false)} />}
     </div>
   );

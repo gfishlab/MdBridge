@@ -1,17 +1,26 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import {
+  normalizeTextStylePreference,
+  normalizeThemePreference,
+  type TextStylePreference,
+  type ThemePreference,
+} from '../../preferences';
 
 interface Config {
   image_cache_size_mb: number;
   default_platform: string;
   check_updates_on_startup: boolean;
+  theme_preference: ThemePreference;
+  text_style: TextStylePreference;
 }
 
 interface SettingsProps {
   onClose: () => void;
+  onSaved: (config: Config) => void;
 }
 
-export function Settings({ onClose }: SettingsProps) {
+export function Settings({ onClose, onSaved }: SettingsProps) {
   const [config, setConfig] = useState<Config | null>(null);
   const [cacheClearing, setCacheClearing] = useState(false);
   const [version, setVersion] = useState('');
@@ -19,14 +28,20 @@ export function Settings({ onClose }: SettingsProps) {
   const [updateStatus, setUpdateStatus] = useState('');
 
   useEffect(() => {
-    invoke<Config>('get_config').then(setConfig);
+    invoke<Config>('get_config').then((nextConfig) => {
+      setConfig({
+        ...nextConfig,
+        theme_preference: normalizeThemePreference(nextConfig.theme_preference),
+        text_style: normalizeTextStylePreference(nextConfig.text_style),
+      });
+    });
     invoke<string>('get_app_version').then(setVersion);
   }, []);
 
   const handleSave = async () => {
     if (config) {
       await invoke('update_config', { updates: config });
-      onClose();
+      onSaved(config);
     }
   };
 
@@ -55,6 +70,48 @@ export function Settings({ onClose }: SettingsProps) {
     <div className="settings-overlay">
       <div className="settings-dialog">
         <h3>设置</h3>
+
+        <div className="settings-section">
+          <h4>外观</h4>
+          <div className="setting-item">
+            <label>主题</label>
+            <select
+              value={config.theme_preference}
+              onChange={(e) =>
+                setConfig({
+                  ...config,
+                  theme_preference: normalizeThemePreference(e.target.value),
+                })
+              }
+            >
+              <option value="system">跟随系统</option>
+              <option value="light">亮色</option>
+              <option value="dark">深色黑色</option>
+              <option value="sepia">护眼暖色</option>
+              <option value="solarized">Solarized</option>
+              <option value="mint">薄荷绿</option>
+              <option value="rose">玫瑰粉</option>
+            </select>
+          </div>
+
+          <div className="setting-item">
+            <label>文字样式</label>
+            <select
+              value={config.text_style}
+              onChange={(e) =>
+                setConfig({
+                  ...config,
+                  text_style: normalizeTextStylePreference(e.target.value),
+                })
+              }
+            >
+              <option value="compact">紧凑</option>
+              <option value="standard">标准</option>
+              <option value="comfortable">舒适</option>
+              <option value="large">大字</option>
+            </select>
+          </div>
+        </div>
 
         <div className="setting-item">
           <label>图片缓存大小 (MB)</label>

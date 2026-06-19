@@ -1,5 +1,5 @@
 use crate::clipboard;
-use crate::config::AppConfig;
+use crate::config::{is_supported_text_style, is_supported_theme, AppConfig};
 use crate::converter::ast::{extract_image_urls, parse_markdown};
 use crate::converter::platforms;
 use crate::image_cache::ImageCache;
@@ -356,7 +356,11 @@ pub fn get_config(state: State<'_, AppState>) -> AppConfig {
 }
 
 #[tauri::command]
-pub fn update_config(updates: serde_json::Value, state: State<'_, AppState>) -> Result<(), String> {
+pub fn update_config(
+    updates: serde_json::Value,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<(), String> {
     let mut config = state.config.lock().unwrap();
     if let Some(cache_size) = updates.get("image_cache_size_mb").and_then(|v| v.as_u64()) {
         config.image_cache_size_mb = cache_size;
@@ -374,6 +378,16 @@ pub fn update_config(updates: serde_json::Value, state: State<'_, AppState>) -> 
     {
         config.check_updates_on_startup = check;
     }
+    if let Some(theme) = updates.get("theme_preference").and_then(|v| v.as_str()) {
+        if is_supported_theme(theme) {
+            config.theme_preference = theme.to_string();
+        }
+    }
+    if let Some(text_style) = updates.get("text_style").and_then(|v| v.as_str()) {
+        if is_supported_text_style(text_style) {
+            config.text_style = text_style.to_string();
+        }
+    }
     if let Some(recent_files) = updates.get("recent_files").and_then(|v| v.as_array()) {
         config.recent_files = recent_files
             .iter()
@@ -387,6 +401,9 @@ pub fn update_config(updates: serde_json::Value, state: State<'_, AppState>) -> 
             .collect();
     }
     config.save();
+    let updated_config = config.clone();
+    drop(config);
+    let _ = app.emit("config-updated", updated_config);
     Ok(())
 }
 

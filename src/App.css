@@ -10,17 +10,178 @@ html, body, #root {
 }
 
 .app {
+  --app-bg: #ffffff;
+  --surface: #ffffff;
+  --surface-muted: #fafafa;
+  --surface-subtle: #f7f7f7;
+  --surface-hover: #e8e8e8;
+  --surface-active: #d0e8ff;
+  --surface-info: #e8f4fd;
+  --border: #e0e0e0;
+  --border-strong: #d8d8d8;
+  --border-focus: #4a90d9;
+  --text: #222222;
+  --text-secondary: #333333;
+  --text-muted: #666666;
+  --text-subtle: #888888;
+  --text-faint: #999999;
+  --accent: #1890ff;
+  --accent-contrast: #ffffff;
+  --danger: #e53e3e;
+  --danger-soft: #fff5f5;
+  --overlay: rgba(0,0,0,0.5);
+  --shadow-menu: 0 2px 8px rgba(0,0,0,0.15);
+  --shadow-context: 0 4px 16px rgba(0,0,0,0.14);
+  --editor-font-size: 14px;
+  --editor-line-height: 1.6;
+  --preview-font-size: 14px;
+  --preview-line-height: 1.7;
   display: flex;
   flex-direction: column;
   height: 100%;
+  color: var(--text);
+  background: var(--app-bg);
+  color-scheme: light;
+}
+
+.app[data-theme-appearance="dark"] {
+  --app-bg: #000000;
+  --surface: #111111;
+  --surface-muted: #151515;
+  --surface-subtle: #1b1b1b;
+  --surface-hover: #262626;
+  --surface-active: #12304a;
+  --surface-info: #10243a;
+  --border: #303030;
+  --border-strong: #3a3a3a;
+  --border-focus: #4aa3ff;
+  --text: #f4f4f4;
+  --text-secondary: #e6e6e6;
+  --text-muted: #b8b8b8;
+  --text-subtle: #969696;
+  --text-faint: #7a7a7a;
+  --accent: #4aa3ff;
+  --accent-contrast: #000000;
+  --danger: #ff6b6b;
+  --danger-soft: #321919;
+  --overlay: rgba(0,0,0,0.68);
+  --shadow-menu: 0 8px 24px rgba(0,0,0,0.45);
+  --shadow-context: 0 10px 28px rgba(0,0,0,0.5);
+  color-scheme: dark;
+}
+
+.app[data-theme="sepia"] {
+  --app-bg: #f7f0df;
+  --surface: #fffaf0;
+  --surface-muted: #f2ead9;
+  --surface-subtle: #efe5d1;
+  --surface-hover: #e5d9c1;
+  --surface-active: #e2cfa7;
+  --surface-info: #f1e2bf;
+  --border: #d9c9a9;
+  --border-strong: #cbb994;
+  --border-focus: #a77835;
+  --text: #2f281d;
+  --text-secondary: #3d3324;
+  --text-muted: #6f6048;
+  --text-subtle: #8a785c;
+  --text-faint: #9a8768;
+  --accent: #a96f2d;
+  --accent-contrast: #ffffff;
+  --danger-soft: #f8dfd7;
+}
+
+.app[data-theme="solarized"] {
+  --app-bg: #fdf6e3;
+  --surface: #fffaf0;
+  --surface-muted: #eee8d5;
+  --surface-subtle: #e7dfc3;
+  --surface-hover: #dcd3b8;
+  --surface-active: #d5e8e4;
+  --surface-info: #e0eee9;
+  --border: #d6caa7;
+  --border-strong: #c4b78f;
+  --border-focus: #268bd2;
+  --text: #073642;
+  --text-secondary: #174652;
+  --text-muted: #586e75;
+  --text-subtle: #657b83;
+  --text-faint: #839496;
+  --accent: #268bd2;
+  --accent-contrast: #ffffff;
+  --danger: #dc322f;
+  --danger-soft: #f6d9d5;
+}
+
+.app[data-theme="mint"] {
+  --app-bg: #f2faf6;
+  --surface: #ffffff;
+  --surface-muted: #eaf5ef;
+  --surface-subtle: #e1efe7;
+  --surface-hover: #d3e7db;
+  --surface-active: #bee4cf;
+  --surface-info: #d8f0e4;
+  --border: #c9dfd2;
+  --border-strong: #b1cfbd;
+  --border-focus: #27845c;
+  --text: #182720;
+  --text-secondary: #21342a;
+  --text-muted: #4d6658;
+  --text-subtle: #6b8274;
+  --text-faint: #829489;
+  --accent: #27845c;
+  --accent-contrast: #ffffff;
+  --danger-soft: #f4dedc;
+}
+
+.app[data-theme="rose"] {
+  --app-bg: #fff6f8;
+  --surface: #ffffff;
+  --surface-muted: #faedf1;
+  --surface-subtle: #f5e3e9;
+  --surface-hover: #efd5dd;
+  --surface-active: #f2cddd;
+  --surface-info: #f7e2ea;
+  --border: #e5c6d1;
+  --border-strong: #d7adbd;
+  --border-focus: #b84f78;
+  --text: #2f2026;
+  --text-secondary: #3d2a31;
+  --text-muted: #6d515c;
+  --text-subtle: #876a75;
+  --text-faint: #9b7e89;
+  --accent: #b84f78;
+  --accent-contrast: #ffffff;
+  --danger-soft: #ffe8e8;
+}
+
+.app[data-text-style="compact"] {
+  --editor-font-size: 13px;
+  --editor-line-height: 1.45;
+  --preview-font-size: 13px;
+  --preview-line-height: 1.55;
+}
+
+.app[data-text-style="comfortable"] {
+  --editor-font-size: 15px;
+  --editor-line-height: 1.75;
+  --preview-font-size: 15px;
+  --preview-line-height: 1.85;
+}
+
+.app[data-text-style="large"] {
+  --editor-font-size: 16px;
+  --editor-line-height: 1.85;
+  --preview-font-size: 16px;
+  --preview-line-height: 1.95;
 }
 
 .toolbar {
   display: flex;
   align-items: center;
   padding: 8px 16px;
-  border-bottom: 1px solid #e0e0e0;
-  background: #fafafa;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-muted);
   -webkit-app-region: drag;
 }
 
@@ -40,11 +201,11 @@ html, body, #root {
   padding: 6px 12px;
   cursor: pointer;
   font-size: 13px;
-  color: #333;
+  color: var(--text-secondary);
 }
 
 .menu-btn:hover {
-  background: #e8e8e8;
+  background: var(--surface-hover);
 }
 
 .content {
@@ -58,6 +219,24 @@ html, body, #root {
 .editor-container {
   flex: 1;
   min-height: 0;
+  background: var(--surface);
+}
+
+.editor-container .w-md-editor,
+.editor-container .wmde-markdown {
+  background-color: var(--surface) !important;
+  color: var(--text) !important;
+}
+
+.editor-container .w-md-editor-text-input,
+.editor-container .w-md-editor-text-pre > code {
+  font-size: var(--editor-font-size) !important;
+  line-height: var(--editor-line-height) !important;
+}
+
+.editor-container .wmde-markdown {
+  font-size: var(--preview-font-size);
+  line-height: var(--preview-line-height);
 }
 
 .tab-strip {
@@ -67,8 +246,8 @@ html, body, #root {
   min-height: 34px;
   padding: 0 8px;
   gap: 4px;
-  border-bottom: 1px solid #e0e0e0;
-  background: #f7f7f7;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-subtle);
   overflow-x: auto;
   overflow-y: hidden;
 }
@@ -83,21 +262,21 @@ html, body, #root {
   padding: 0 6px 0 10px;
   border: 1px solid transparent;
   border-radius: 6px 6px 0 0;
-  color: #555;
+  color: var(--text-muted);
   cursor: pointer;
   user-select: none;
   flex-shrink: 0;
 }
 
 .doc-tab:hover {
-  background: #ececec;
+  background: var(--surface-hover);
 }
 
 .doc-tab.active {
-  background: white;
-  border-color: #d8d8d8;
-  border-bottom-color: white;
-  color: #222;
+  background: var(--surface);
+  border-color: var(--border-strong);
+  border-bottom-color: var(--surface);
+  color: var(--text);
 }
 
 .doc-tab-title {
@@ -119,7 +298,7 @@ html, body, #root {
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: #777;
+  color: var(--text-subtle);
   cursor: pointer;
   flex-shrink: 0;
   font-size: 14px;
@@ -128,8 +307,8 @@ html, body, #root {
 
 .doc-tab-close:hover,
 .doc-tab-add:hover {
-  background: #dedede;
-  color: #222;
+  background: var(--surface-hover);
+  color: var(--text);
 }
 
 .doc-tab-add {
@@ -141,10 +320,10 @@ html, body, #root {
   z-index: 200;
   min-width: 150px;
   padding: 4px;
-  border: 1px solid #d8d8d8;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
-  background: white;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.14);
+  background: var(--surface);
+  box-shadow: var(--shadow-context);
 }
 
 .tab-context-menu button {
@@ -154,14 +333,14 @@ html, body, #root {
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: #333;
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 13px;
   text-align: left;
 }
 
 .tab-context-menu button:hover {
-  background: #f0f0f0;
+  background: var(--surface-hover);
 }
 
 .editor-textarea {
@@ -172,16 +351,18 @@ html, body, #root {
   resize: none;
   padding: 16px;
   font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
-  font-size: 14px;
-  line-height: 1.6;
+  line-height: var(--editor-line-height);
+  color: var(--text);
+  background: var(--surface);
+  font-size: var(--editor-font-size);
 }
 
 .status-bar {
   padding: 4px 16px;
-  border-top: 1px solid #e0e0e0;
-  background: #fafafa;
+  border-top: 1px solid var(--border);
+  background: var(--surface-muted);
   font-size: 12px;
-  color: #666;
+  color: var(--text-muted);
 }
 
 .platform-bar {
@@ -193,10 +374,10 @@ html, body, #root {
   top: 100%;
   left: 0;
   margin-top: 4px;
-  background: white;
-  border: 1px solid #e0e0e0;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  box-shadow: var(--shadow-menu);
   z-index: 100;
   min-width: 120px;
 }
@@ -210,10 +391,11 @@ html, body, #root {
   text-align: left;
   cursor: pointer;
   font-size: 13px;
+  color: var(--text-secondary);
 }
 
 .platform-item:hover {
-  background: #f0f0f0;
+  background: var(--surface-hover);
 }
 
 .main-content {
@@ -227,8 +409,8 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  border-right: 1px solid #e0e0e0;
-  background: #fafafa;
+  border-right: 1px solid var(--border);
+  background: var(--surface-muted);
   min-width: 160px;
   max-width: 600px;
 }
@@ -247,7 +429,7 @@ html, body, #root {
   align-items: center;
   gap: 2px;
   padding: 4px 8px;
-  border-bottom: 1px solid #e8e8e8;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
@@ -266,12 +448,12 @@ html, body, #root {
   background: none;
   border-radius: 4px;
   cursor: pointer;
-  color: #666;
+  color: var(--text-muted);
 }
 
 .tree-toolbar-btn:hover {
-  background: #e0e0e0;
-  color: #333;
+  background: var(--surface-hover);
+  color: var(--text-secondary);
 }
 
 .new-file-input {
@@ -279,23 +461,24 @@ html, body, #root {
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
-  background: #e8f4fd;
-  border-bottom: 1px solid #b8daff;
+  background: var(--surface-info);
+  border-bottom: 1px solid var(--border-focus);
 }
 
 .new-file-name {
   flex: 1;
-  border: 1px solid #b8daff;
+  border: 1px solid var(--border-focus);
   border-radius: 3px;
   padding: 2px 6px;
   font-size: 12px;
   outline: none;
-  background: white;
+  background: var(--surface);
+  color: var(--text);
 }
 
 .new-file-name:focus {
-  border-color: #4a90d9;
-  box-shadow: 0 0 0 1px #4a90d9;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 1px var(--border-focus);
 }
 
 .file-tree {
@@ -318,7 +501,7 @@ html, body, #root {
 
 .file-tree-resizer:hover,
 .file-tree-resizer:active {
-  background: #1890ff;
+  background: var(--accent);
 }
 
 .tree-item {
@@ -331,14 +514,15 @@ html, body, #root {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: var(--text-secondary);
 }
 
 .tree-item:hover {
-  background: #e8e8e8;
+  background: var(--surface-hover);
 }
 
 .tree-item.active {
-  background: #d0e8ff;
+  background: var(--surface-active);
 }
 
 .tree-item.dir {
@@ -364,10 +548,10 @@ html, body, #root {
 .context-menu {
   position: fixed;
   z-index: 200;
-  background: white;
-  border: 1px solid #e0e0e0;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-context);
   min-width: 160px;
   padding: 4px 0;
 }
@@ -380,20 +564,20 @@ html, body, #root {
   background: none;
   text-align: left;
   font-size: 13px;
-  color: #333;
+  color: var(--text-secondary);
   cursor: pointer;
 }
 
 .context-menu-item:hover {
-  background: #f0f0f0;
+  background: var(--surface-hover);
 }
 
 .context-menu-item.danger {
-  color: #e53e3e;
+  color: var(--danger);
 }
 
 .context-menu-item.danger:hover {
-  background: #fff5f5;
+  background: var(--danger-soft);
 }
 
 .file-menu-container {
@@ -401,16 +585,17 @@ html, body, #root {
 }
 
 .file-btn {
-  background: #f0f0f0;
+  background: var(--surface-hover);
   border: none;
   border-radius: 4px;
   padding: 6px 16px;
   cursor: pointer;
   font-size: 13px;
+  color: var(--text-secondary);
 }
 
 .file-btn:hover {
-  background: #e0e0e0;
+  background: var(--surface-hover);
 }
 
 .file-menu {
@@ -418,10 +603,10 @@ html, body, #root {
   top: 100%;
   left: 0;
   margin-top: 4px;
-  background: white;
-  border: 1px solid #e0e0e0;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  box-shadow: var(--shadow-menu);
   z-index: 100;
   min-width: 220px;
   max-width: 320px;
@@ -438,21 +623,22 @@ html, body, #root {
   cursor: pointer;
   font-size: 13px;
   white-space: nowrap;
+  color: var(--text-secondary);
 }
 
 .file-menu button:hover {
-  background: #f0f0f0;
+  background: var(--surface-hover);
 }
 
 .file-menu-section {
   margin-top: 4px;
   padding-top: 4px;
-  border-top: 1px solid #eeeeee;
+  border-top: 1px solid var(--border);
 }
 
 .file-menu-section-title {
   padding: 6px 16px 4px;
-  color: #888;
+  color: var(--text-subtle);
   font-size: 11px;
 }
 
@@ -463,7 +649,7 @@ html, body, #root {
 
 .file-path {
   margin-left: 16px;
-  color: #999;
+  color: var(--text-faint);
 }
 
 .update-overlay {
@@ -472,7 +658,7 @@ html, body, #root {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0,0,0,0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -480,7 +666,7 @@ html, body, #root {
 }
 
 .update-dialog {
-  background: white;
+  background: var(--surface);
   border-radius: 8px;
   padding: 24px;
   max-width: 460px;
@@ -493,7 +679,7 @@ html, body, #root {
 
 .update-version {
   margin-bottom: 12px;
-  color: #666;
+  color: var(--text-muted);
   font-size: 13px;
 }
 
@@ -501,8 +687,8 @@ html, body, #root {
   margin-bottom: 16px;
   max-height: 240px;
   overflow: auto;
-  background: #f7f8fa;
-  border: 1px solid #eceef1;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
   border-radius: 6px;
   padding: 12px 16px;
 }
@@ -511,13 +697,13 @@ html, body, #root {
   margin: 0 0 8px;
   font-size: 13px;
   font-weight: 600;
-  color: #333;
+  color: var(--text-secondary);
 }
 
 .update-changelog {
   margin: 0;
   padding-left: 20px;
-  color: #444;
+  color: var(--text-secondary);
   font-size: 13px;
   line-height: 1.7;
 }
@@ -539,14 +725,16 @@ html, body, #root {
 .update-actions button {
   padding: 8px 16px;
   border-radius: 4px;
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
   cursor: pointer;
 }
 
 .update-actions button:last-child {
-  background: #1890ff;
-  color: white;
-  border-color: #1890ff;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
 }
 
 .settings-overlay {
@@ -555,7 +743,7 @@ html, body, #root {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0,0,0,0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -563,7 +751,7 @@ html, body, #root {
 }
 
 .settings-dialog {
-  background: white;
+  background: var(--surface);
   border-radius: 8px;
   padding: 24px;
   max-width: 500px;
@@ -574,6 +762,17 @@ html, body, #root {
   margin-bottom: 20px;
 }
 
+.settings-section {
+  margin-bottom: 18px;
+  padding-bottom: 2px;
+}
+
+.settings-section h4 {
+  margin-bottom: 12px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
 .setting-item {
   margin-bottom: 16px;
 }
@@ -582,15 +781,17 @@ html, body, #root {
   display: block;
   margin-bottom: 4px;
   font-size: 13px;
-  color: #333;
+  color: var(--text-secondary);
 }
 
 .setting-item input[type="number"],
 .setting-item select {
   width: 100%;
   padding: 8px;
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--border-strong);
   border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
 }
 
 .setting-item input[type="checkbox"] {
@@ -599,9 +800,10 @@ html, body, #root {
 
 .setting-item button {
   padding: 8px 16px;
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--border-strong);
   border-radius: 4px;
-  background: white;
+  background: var(--surface);
+  color: var(--text);
   cursor: pointer;
 }
 
@@ -615,7 +817,7 @@ html, body, #root {
 .setting-description,
 .setting-status {
   margin: 4px 0 0;
-  color: #666;
+  color: var(--text-muted);
   font-size: 13px;
 }
 
@@ -629,12 +831,14 @@ html, body, #root {
 .settings-actions button {
   padding: 8px 16px;
   border-radius: 4px;
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
   cursor: pointer;
 }
 
 .settings-actions button:last-child {
-  background: #1890ff;
-  color: white;
-  border-color: #1890ff;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
 }

@@ -1,14 +1,16 @@
 import MDEditor from '@uiw/react-md-editor';
 import remarkCjkFriendly from 'remark-cjk-friendly';
+import type { ThemeAppearance } from '../../preferences';
 
 interface EditorProps {
   value: string;
   onChange: (value: string) => void;
+  colorMode: ThemeAppearance;
 }
 
-export function Editor({ value, onChange }: EditorProps) {
+export function Editor({ value, onChange, colorMode }: EditorProps) {
   return (
-    <div className="editor-container" data-color-mode="light">
+    <div className="editor-container" data-color-mode={colorMode}>
       <MDEditor
         value={value}
         onChange={(val) => onChange(val || '')}
