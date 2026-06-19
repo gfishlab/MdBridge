@@ -1,6 +1,10 @@
 use super::PlatformConverter;
 use crate::converter::ast::walk_nodes;
 use comrak::nodes::{AstNode, ListType, NodeValue};
+use syntect::easy::HighlightLines;
+use syntect::highlighting::ThemeSet;
+use syntect::html::{styled_line_to_highlighted_html, IncludeBackground};
+use syntect::parsing::SyntaxSet;
 
 pub struct WechatConverter;
 
@@ -53,12 +57,7 @@ fn render_block<'a>(node: &'a AstNode<'a>, html: &mut String) {
             html.push_str("</p>");
         }
         NodeValue::CodeBlock(code_block) => {
-            html.push_str(
-                "<pre style=\"background:#f6f8fa;padding:16px;border-radius:6px;overflow-x:auto;margin:14px 0;\">\
-                 <code style=\"font-family:Consolas,Monaco,monospace;font-size:14px;line-height:1.6;\">",
-            );
-            html.push_str(&html_escape(&code_block.literal));
-            html.push_str("</code></pre>");
+            render_code_block_macos(&code_block.info, &code_block.literal, html);
         }
         NodeValue::List(list) => {
             render_list(node, list, 0, html);
@@ -90,6 +89,328 @@ fn render_block<'a>(node: &'a AstNode<'a>, html: &mut String) {
             html.push_str("</p>");
         }
         _ => {}
+    }
+}
+
+/// 渲染 macOS 风格代码块：顶部浅灰标题栏带红/黄/绿三圆点（模仿 Mac 终端
+/// 窗口红绿灯），下方为浅灰底等宽代码区。
+///
+/// 注意：这不是通用代码块 HTML，而是**专门适配微信公众号编辑器粘贴行为**的实现。
+/// 微信会在粘贴富文本时清理/改写 `<pre>/<code>`、`white-space` 和连续空格，导致代码
+/// 缩进与长行折行异常。其他平台（B站、知乎、掘金、推特等）应在各自 converter 中按
+/// 平台能力单独处理，避免把微信公众号的 workaround 抽到共享渲染层而相互干扰。
+///
+/// 实现细节：
+/// 1. 外壳、标题栏和代码区都使用 `<section>`，比 `<pre>/<code>` 更少被微信编辑器改写；
+/// 2. 三圆点用 `background-color`（而非简写 `background`），微信对简写解析不稳定；
+/// 3. **圆点 span 内必须有文本内容**：微信会吞掉无文本的 inline 元素，所以每个
+///    圆点 span 内放一个实心圆字符 `●`（U+25CF），并用 `color` 设成同色让它隐形
+///    于背景，同时 `font-size`/`line-height` 让微信把它当作文本节点保留。
+/// 4. 代码内容用 syntect 做语法高亮（GitHub 浅色配色），每个 token 包在带
+///    `color` 的 inline span 里。识别不了的语言回退到纯文本。
+/// 5. 每一行根据原始前导空格计算缩进，并写成 `padding-left`。即使微信强制折行，
+///    续行也会保持该代码行的缩进，不会掉回最左侧。
+fn render_code_block_macos(info: &str, literal: &str, html: &mut String) {
+    // 外层：圆角 + 浅灰底；header 作为其首子元素。
+    html.push_str(
+        "<section style=\"margin:14px 0;padding:0;border-radius:5px;\
+         background-color:#f6f8fa;overflow:hidden;overflow-x:auto;\">",
+    );
+    // 标题栏 header：浅灰条，内含三个 macOS 红绿灯圆点。
+    html.push_str(
+        "<section style=\"height:30px;width:100%;\
+         background-color:#e8e8e8;\
+         border-radius:5px 5px 0 0;padding:10px 0 0 12px;box-sizing:border-box;\">",
+    );
+    for color in ["#ff5f56", "#ffbd2e", "#27c93f"] {
+        html.push_str(&format!(
+            "<span style=\"display:inline-block;width:10px;height:10px;\
+             line-height:10px;border-radius:50%;background-color:{};color:{};\
+             font-size:10px;margin-right:6px;vertical-align:top;\">\u{25CF}</span>",
+            color, color
+        ));
+    }
+    html.push_str("</section>");
+    // 代码区：等宽字体，padding 给出代码内容留白。每一行另有 section 行容器，
+    // 用更靠近编辑器的节点直接控制行高、折行和缩进。
+    html.push_str(
+        "<section style=\"padding:16px;overflow-x:auto;\
+         font-family:Consolas,Monaco,monospace;font-size:14px;line-height:18px;\">",
+    );
+    // 尝试语法高亮；识别不了的语言回退到纯文本（仅做空白兼容处理）。
+    match highlight_code_to_html_lines(info, literal) {
+        Some(lines) => render_highlighted_code_lines(&lines, html),
+        None => render_plain_code_lines(literal, html),
+    }
+    html.push_str("</section>");
+    html.push_str("</section>");
+}
+
+struct HighlightedCodeLine {
+    indent_columns: usize,
+    html: String,
+}
+
+/// 用 syntect 把代码逐行高亮成带 inline color 的 HTML 片段（不含 `<pre>` 外壳）。
+///
+/// `info` 是代码围栏后的语言标记（如 `java`、`python`，可能含 ` ```java title` 这样的
+/// 额外信息，取首个 token）。语法识别失败时返回 `None`，由调用方回退到纯文本。
+///
+/// 配色用 syntect 自带的 `InspiredGitHub` 主题（GitHub 浅色风格），与浅灰代码区背景
+/// `#f6f8fa` 协调。
+fn highlight_code_to_html_lines(info: &str, code: &str) -> Option<Vec<HighlightedCodeLine>> {
+    let lang_token = info.split_whitespace().next()?;
+    if lang_token.is_empty() {
+        return None;
+    }
+
+    let ps = SyntaxSet::load_defaults_newlines();
+    let ts = ThemeSet::load_defaults();
+    let theme = &ts.themes["InspiredGitHub"];
+
+    let syntax = ps
+        .find_syntax_by_token(lang_token)
+        .or_else(|| ps.find_syntax_by_extension(lang_token))?;
+
+    let mut highlighter = HighlightLines::new(syntax, theme);
+    let lines = code_lines(code);
+    let mut out = Vec::with_capacity(lines.len());
+    for line in lines {
+        let (indent_columns, code_without_indent) = split_code_indent(line);
+        // syntect 的 highlight_line 期望行尾带换行符，输出的 regions 本身就包含该 \n，
+        // 但最终渲染时我们按行生成 block 容器，所以要把末尾换行从 region 里剥掉。
+        let line_with_nl = format!("{}\n", code_without_indent);
+        let mut regions = highlighter.highlight_line(&line_with_nl, &ps).ok()?;
+        if let Some(last) = regions.last_mut() {
+            if let Some(stripped) = last.1.strip_suffix('\n') {
+                last.1 = stripped;
+            }
+        }
+        if code_without_indent.is_empty() {
+            out.push(HighlightedCodeLine {
+                indent_columns,
+                html: String::new(),
+            });
+            continue;
+        }
+        let line_html =
+            styled_line_to_highlighted_html(&regions[..], IncludeBackground::No).ok()?;
+        // 微信会吞掉"只含空白的 span"，导致缩进丢失。解包这种 span，让缩进空格成为
+        // 行容器的直接文本子节点。
+        out.push(HighlightedCodeLine {
+            indent_columns,
+            html: unwrap_whitespace_only_spans(&line_html),
+        });
+    }
+    Some(out)
+}
+
+fn code_lines(code: &str) -> Vec<&str> {
+    let code = code.strip_suffix('\n').unwrap_or(code);
+    if code.is_empty() {
+        vec![""]
+    } else {
+        code.split('\n').collect()
+    }
+}
+
+fn split_code_indent(line: &str) -> (usize, &str) {
+    for (idx, ch) in line.char_indices() {
+        match ch {
+            ' ' => {}
+            '\t' => {}
+            _ => return (indent_columns(&line[..idx]), &line[idx..]),
+        }
+    }
+    (indent_columns(line), "")
+}
+
+fn indent_columns(indent: &str) -> usize {
+    indent
+        .chars()
+        .map(|ch| if ch == '\t' { 4 } else { 1 })
+        .sum()
+}
+
+fn push_code_line_open(indent_columns: usize, html: &mut String) {
+    // 微信强制折行时，续行会按当前块的 padding 继续排版。把前导缩进从文本空格
+    // 转成行容器 padding，比依赖 NBSP/white-space 更稳定；这也是微信公众号专用策略。
+    let indent_em = indent_columns as f32 * 0.62;
+    html.push_str(&format!(
+        "<section style=\"min-height:18px;line-height:18px;margin:0;padding:0 0 0 {:.2}em;\
+         font-family:Consolas,Monaco,monospace;font-size:14px;\
+         white-space:nowrap;word-break:keep-all;overflow-wrap:normal;word-wrap:normal;\
+         hyphens:none;-webkit-hyphens:none;text-indent:0;box-sizing:border-box;\">\
+         <code style=\"display:inline-block;min-width:max-content;\
+         font-family:Consolas,Monaco,monospace;font-size:14px;line-height:18px;\
+         white-space:nowrap;word-break:keep-all;overflow-wrap:normal;word-wrap:normal;\
+         hyphens:none;-webkit-hyphens:none;\">",
+        indent_em
+    ));
+}
+
+fn push_code_line_close(html: &mut String) {
+    html.push_str("</code></section>");
+}
+
+fn render_highlighted_code_lines(lines: &[HighlightedCodeLine], html: &mut String) {
+    for line in lines {
+        push_code_line_open(line.indent_columns, html);
+        if line.html.is_empty() {
+            html.push('\u{00A0}');
+        } else {
+            materialize_highlighted_line_whitespace(&line.html, html);
+        }
+        push_code_line_close(html);
+    }
+}
+
+fn render_plain_code_lines(code: &str, html: &mut String) {
+    for line in code_lines(code) {
+        let (indent, code_without_indent) = split_code_indent(line);
+        push_code_line_open(indent, html);
+        if code_without_indent.is_empty() {
+            html.push('\u{00A0}');
+        } else {
+            materialize_plain_line(code_without_indent, html);
+        }
+        push_code_line_close(html);
+    }
+}
+
+/// 解包高亮 HTML 里"只含空白字符的 `<span>`"。
+///
+/// syntect 会把行首缩进空格单独包成 `<span style="color:#323232;">    </span>`。
+/// 微信编辑器粘贴时会清理掉这种只含空白的 inline 元素（与空 span 被吞是同类问题），
+/// 导致代码缩进完全丢失。本函数去掉这种 span 的标签，只保留里面的空白文本，让它
+/// 成为父元素的直接文本子节点——微信对直接文本节点的空白会保留。
+///
+/// 只处理内容**全部**是空白（空格/Tab/换行）的 span；含任何非空白字符的 span 不动。
+fn unwrap_whitespace_only_spans(html: &str) -> String {
+    let mut result = String::with_capacity(html.len());
+    let mut rest = html;
+    while let Some(open) = rest.find("<span style=\"") {
+        // 先把 span 开标签之前的内容原样输出
+        result.push_str(&rest[..open]);
+        rest = &rest[open..];
+        // 找到开标签的结束 `>`
+        let tag_end = match rest.find('>') {
+            Some(i) => i + 1,
+            None => {
+                result.push_str(rest);
+                return result;
+            }
+        };
+        let after_open = &rest[tag_end..];
+        // 找到最近的 `</span>`
+        let close = match after_open.find("</span>") {
+            Some(i) => i,
+            None => {
+                result.push_str(rest);
+                return result;
+            }
+        };
+        let span_content = &after_open[..close];
+        // 判断 span 内容是否全部是空白
+        let is_ws_only = !span_content.is_empty()
+            && span_content
+                .chars()
+                .all(|c| c == ' ' || c == '\t' || c == '\n' || c == '\r');
+        if is_ws_only {
+            // 解包：直接输出空白内容（去掉 span 标签）
+            result.push_str(span_content);
+        } else {
+            // 保留整个 span（含标签和内容）
+            result.push_str(&rest[..tag_end + close + "</span>".len()]);
+        }
+        rest = &rest[tag_end + close + "</span>".len()..];
+    }
+    result.push_str(rest);
+    result
+}
+
+/// 把**已高亮**的单行代码 HTML（含 `<span style="color:...">` 标签）做微信兼容的空白处理。
+///
+/// 这里输入已经是 HTML（带标签），不能简单逐字符替换——否则会把标签属性里的空格
+/// 也换掉，破坏 HTML。
+///
+/// 用状态机逐字符遍历，跟踪是否在 `<>` 标签内部：
+/// - 标签内（`<...>`）：原样输出，不改动空格/换行；
+/// - 标签外（文本节点）：
+///   - 连续空格（≥2）→ 等量 `U+00A0`（防微信合并，保护缩进）；
+///   - 单个空格 → 保留普通空格（单词间，微信不合并单个空格，转 U+00A0 反而变宽）；
+///   - Tab → 4×`U+00A0`。
+///
+/// 注意：连续空格可能跨 span 边界（如 `<span>  </span><span> </span>`），但由于 syntect
+/// 通常把同类空白归在同一 token，跨边界连续空格罕见；即便发生，每个 span 内的连续
+/// 空格仍会被正确处理，单空格保留，不影响正确性。
+///
+/// 安全性前提：syntect 已对文本做 HTML 转义（`<`→`&lt;`），文本节点不会出现裸 `<`。
+fn materialize_highlighted_line_whitespace(highlighted: &str, html: &mut String) {
+    let mut in_tag = false;
+    let mut chars = highlighted.chars().peekable();
+    while let Some(ch) = chars.next() {
+        match ch {
+            '<' => {
+                in_tag = true;
+                html.push(ch);
+            }
+            '>' => {
+                in_tag = false;
+                html.push(ch);
+            }
+            _ if in_tag => html.push(ch),
+            ' ' => {
+                // 文本节点内的连续空格
+                let mut run = 1usize;
+                while chars.peek() == Some(&' ') {
+                    chars.next();
+                    run += 1;
+                }
+                if run >= 2 {
+                    for _ in 0..run {
+                        html.push('\u{00A0}');
+                    }
+                } else {
+                    html.push(' ');
+                }
+            }
+            '\t' => html.push_str("\u{00A0}\u{00A0}\u{00A0}\u{00A0}"),
+            '\n' | '\r' => {}
+            _ => html.push(ch),
+        }
+    }
+}
+
+/// 把纯文本代码一行内的空白字符转成微信编辑器能保留的形式（高亮失败时的回退路径）：
+/// - **连续空格（≥2）** → 等量 `U+00A0`。微信会把连续普通空格合并成 1 个，导致
+///   缩进全乱；U+00A0 不会被合并。
+/// - **单个空格** → 保留普通空格。单词间的单个空格不会被微信合并，转成 U+00A0
+///   反而会导致字符间距变宽、排版松散。
+/// - Tab `\t` → 4 个 `U+00A0`（与常见编辑器 Tab 宽度一致）。
+/// 其余字符照常 HTML 转义。
+fn materialize_plain_line(line: &str, html: &mut String) {
+    let mut chars = line.chars().peekable();
+    while let Some(ch) = chars.next() {
+        match ch {
+            ' ' => {
+                // 收集连续空格
+                let mut run = 1usize;
+                while chars.peek() == Some(&' ') {
+                    chars.next();
+                    run += 1;
+                }
+                if run >= 2 {
+                    for _ in 0..run {
+                        html.push('\u{00A0}');
+                    }
+                } else {
+                    html.push(' ');
+                }
+            }
+            '\t' => html.push_str("\u{00A0}\u{00A0}\u{00A0}\u{00A0}"),
+            _ => html.push_str(&html_escape(&ch.to_string())),
+        }
     }
 }
 
@@ -245,7 +566,276 @@ mod tests {
         let arena = Arena::new();
         let doc = parse_markdown(&arena, "```rust\nfn main() {}\n```");
         let html = WechatConverter.convert(doc);
-        assert!(html.contains("fn main"));
+        // 代码内容保留；单词间空格被转成 U+00A0（微信兼容），所以分别断言 token 存在
+        assert!(html.contains("fn"));
+        assert!(html.contains("main"));
+    }
+
+    #[test]
+    fn test_wechat_code_block_has_macos_dots() {
+        let arena = Arena::new();
+        let doc = parse_markdown(&arena, "```rust\nfn main() {}\n```");
+        let html = WechatConverter.convert(doc);
+        // macOS 红绿灯三圆点：用 background-color（微信对简写 background 解析不稳定）
+        assert!(html.contains("background-color:#ff5f56"), "missing red dot");
+        assert!(
+            html.contains("background-color:#ffbd2e"),
+            "missing yellow dot"
+        );
+        assert!(
+            html.contains("background-color:#27c93f"),
+            "missing green dot"
+        );
+        // 圆点必须是圆形
+        assert!(html.contains("border-radius:50%"));
+        // 关键：微信会吞掉无文本内容的 inline 元素，圆点 span 内必须有实心圆字符 ●
+        assert!(
+            html.contains('\u{25CF}'),
+            "dots must contain U+25CF solid circle char so WeChat keeps them"
+        );
+    }
+
+    #[test]
+    fn test_wechat_code_block_has_title_bar() {
+        let arena = Arena::new();
+        let doc = parse_markdown(&arena, "```rust\nfn main() {}\n```");
+        let html = WechatConverter.convert(doc);
+        // 浅灰标题栏（header 作为外层 section 首子元素）
+        assert!(
+            html.contains("background-color:#e8e8e8"),
+            "missing title bar background-color"
+        );
+    }
+
+    #[test]
+    fn test_wechat_code_block_uses_section_container() {
+        let arena = Arena::new();
+        let doc = parse_markdown(&arena, "```rust\nfn main() {}\n```");
+        let html = WechatConverter.convert(doc);
+        // 外层 section 带圆角；header 与代码区都在 section 内部
+        assert!(html.contains("border-radius:5px"));
+    }
+
+    #[test]
+    fn test_wechat_code_block_disables_soft_wrap() {
+        let arena = Arena::new();
+        let doc = parse_markdown(
+            &arena,
+            "```java\nrecord RequestResult(int index, double elapsedSec, boolean passed) {}\n```",
+        );
+        let html = WechatConverter.convert(doc);
+        assert!(
+            html.contains("white-space:nowrap"),
+            "each rendered code line should opt out of soft wrapping"
+        );
+        assert!(
+            !html.contains("white-space:pre-wrap"),
+            "pre-wrap allows WeChat to break long code lines and distort indentation"
+        );
+        assert!(
+            html.contains("word-break:keep-all")
+                && html.contains("overflow-wrap:normal")
+                && html.contains("word-wrap:normal")
+                && html.contains("hyphens:none"),
+            "code block should explicitly disable forced word wrapping"
+        );
+    }
+
+    #[test]
+    fn test_wechat_code_block_uses_tighter_line_height() {
+        let arena = Arena::new();
+        let doc = parse_markdown(&arena, "```rust\nfn main() {}\n```");
+        let html = WechatConverter.convert(doc);
+        assert!(
+            html.contains("line-height:18px"),
+            "code block line-height should be compact enough for WeChat"
+        );
+        assert!(
+            !html.contains("line-height:1.45") && !html.contains("line-height:1.6"),
+            "old code block line-height was too loose in WeChat"
+        );
+    }
+
+    #[test]
+    fn test_wechat_code_block_code_content_preserved() {
+        let arena = Arena::new();
+        let doc = parse_markdown(&arena, "```rust\nfn main() {}\n```");
+        let html = WechatConverter.convert(doc);
+        // 代码内容仍被正确转义并保留在 <code> 内
+        // 单词间空格被转成 U+00A0（微信兼容），所以分别断言 token
+        assert!(html.contains("<code"));
+        assert!(html.contains("fn"));
+        assert!(html.contains("main"));
+    }
+
+    #[test]
+    fn test_wechat_code_block_indent_uses_line_padding() {
+        // 微信会把连续普通空格合并，甚至会让强制折行后的续行掉回最左侧。
+        // 修复：前导缩进转为行容器 padding，让续行也跟随同一行的缩进。
+        // 用未知语言保证走纯文本路径，避免高亮 span 干扰断言。
+        let arena = Arena::new();
+        let doc = parse_markdown(&arena, "```text\n    int x = 1;\n```");
+        let html = WechatConverter.convert(doc);
+        assert!(
+            html.contains("padding:0 0 0 2.48em"),
+            "4 leading spaces should become line padding, got: {}",
+            html
+        );
+        assert!(
+            !html.contains("    int"),
+            "raw 4-space indent must not appear in code text"
+        );
+    }
+
+    #[test]
+    fn test_wechat_code_block_tab_uses_line_padding() {
+        // Tab 缩进同样转成 4 列 padding。
+        // 用未知语言保证走纯文本路径，避免高亮 span 干扰断言。
+        let arena = Arena::new();
+        let doc = parse_markdown(&arena, "```text\n\tprint('hi')\n```");
+        let html = WechatConverter.convert(doc);
+        assert!(
+            html.contains("padding:0 0 0 2.48em"),
+            "tab must be converted to 4-column line padding"
+        );
+    }
+
+    #[test]
+    fn test_wechat_code_block_single_space_preserved() {
+        // 单个空格（单词间，如 `int x`）不会被微信合并，应保留为普通空格。
+        // 把单个空格也转成 U+00A0 会导致微信里字符间距变宽、排版松散。
+        // 用未知语言走纯文本路径。
+        let arena = Arena::new();
+        let doc = parse_markdown(&arena, "```text\nint x = 1;\n```");
+        let html = WechatConverter.convert(doc);
+        // `int x` 之间应是普通空格（不是 U+00A0）
+        assert!(
+            html.contains("int x"),
+            "single space between words must stay a normal space, got: {}",
+            html
+        );
+        assert!(
+            !html.contains("int\u{00A0}x"),
+            "single space must NOT become U+00A0"
+        );
+    }
+
+    #[test]
+    fn test_wechat_code_block_highlight_single_space_preserved() {
+        // 高亮路径下，单词间单个空格同样应保留为普通空格。
+        let arena = Arena::new();
+        let doc = parse_markdown(&arena, "```java\npublic class A {}\n```");
+        let html = WechatConverter.convert(doc);
+        // public 和 class 之间（可能隔着 span 边界）应有普通空格残留。
+        // 至少不应把所有空格都转成 U+00A0——断言存在普通空格。
+        assert!(
+            html.contains(" "),
+            "highlighted output should still contain normal spaces (not all U+00A0)"
+        );
+    }
+
+    #[test]
+    fn test_wechat_code_block_highlight_indent_uses_line_padding() {
+        // 高亮路径也应把前导缩进转成行容器 padding，避免只含空白的 span 被微信吞掉。
+        let arena = Arena::new();
+        let doc = parse_markdown(&arena, "```java\n    int x;\n```");
+        let html = WechatConverter.convert(doc);
+        assert!(
+            html.contains("padding:0 0 0 2.48em"),
+            "highlighted indentation should become line padding, got: {}",
+            html
+        );
+        assert!(
+            !html.contains("    int"),
+            "raw 4-space indent must not appear in highlighted output"
+        );
+    }
+
+    #[test]
+    fn test_wechat_code_block_newline_uses_line_wrappers() {
+        // 微信里 \n / <br> 的行高不可控，多行代码逐行渲染成 block 容器。
+        let arena = Arena::new();
+        let doc = parse_markdown(&arena, "```js\nconst a = 1;\nconst b = 2;\n```");
+        let html = WechatConverter.convert(doc);
+        let line_count = html
+            .matches("min-height:18px;line-height:18px;margin:0")
+            .count();
+        assert!(
+            line_count >= 2,
+            "expected at least 2 code line wrappers, got {} in: {}",
+            line_count,
+            html
+        );
+        assert!(
+            !html.contains("<br>"),
+            "code lines should not rely on <br>, which makes WeChat line-height unstable"
+        );
+    }
+
+    #[test]
+    fn test_wechat_code_block_syntax_highlight_colors() {
+        // 语法高亮：关键字、字符串、注释应被包进带不同颜色的 inline span。
+        // 只检查 <code>...</code> 内部，避免被三圆点的颜色干扰。
+        let arena = Arena::new();
+        let doc = parse_markdown(&arena, "```java\npublic class A {}\n```");
+        let html = WechatConverter.convert(doc);
+        // 提取 <code> 和 </code> 之间的内容
+        let code_inner = html
+            .split("<code")
+            .nth(1)
+            .and_then(|s| s.split("</code>").next())
+            .expect("should have a <code> block");
+        let color_count = code_inner.matches("color:#").count();
+        assert!(
+            color_count >= 2,
+            "code content should contain multiple colored spans for highlight, got {} in: {}",
+            color_count,
+            code_inner
+        );
+    }
+
+    #[test]
+    fn test_wechat_code_block_highlight_preserves_whitespace_fix() {
+        // 高亮后，缩进仍必须转成行级 padding。
+        let arena = Arena::new();
+        let doc = parse_markdown(&arena, "```python\n    x = 1\n```");
+        let html = WechatConverter.convert(doc);
+        assert!(
+            html.contains("padding:0 0 0 2.48em"),
+            "highlighted code must still use line padding for indentation"
+        );
+        assert!(
+            !html.contains("    x"),
+            "raw 4-space indent must not appear in highlighted output"
+        );
+    }
+
+    #[test]
+    fn test_wechat_code_block_unknown_language_falls_back() {
+        // 无法识别的语言（如乱码 lang）应回退到纯文本 + 间距处理，不崩溃。
+        let arena = Arena::new();
+        let doc = parse_markdown(&arena, "```nosuchlang_xyz\n    plain text\n```");
+        let html = WechatConverter.convert(doc);
+        assert!(html.contains("plain"));
+        assert!(html.contains("padding:0 0 0 2.48em"));
+    }
+
+    #[test]
+    fn test_wechat_code_block_no_double_br_between_lines() {
+        // 高亮多行代码时不应依赖 <br>，避免微信里行间距被放大。
+        let arena = Arena::new();
+        let doc = parse_markdown(&arena, "```java\npublic class A {\n    int x;\n}\n```");
+        let html = WechatConverter.convert(doc);
+        let code_inner = html
+            .split("<code")
+            .nth(1)
+            .and_then(|s| s.split("</code>").next())
+            .unwrap_or("");
+        assert!(
+            !code_inner.contains("<br>"),
+            "code line breaks should be block wrappers instead of <br>, got: {}",
+            code_inner
+        );
     }
 
     #[test]

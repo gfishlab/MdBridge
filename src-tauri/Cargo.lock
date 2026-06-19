@@ -2583,6 +2583,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "syntect",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
