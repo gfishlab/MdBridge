@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-dialog';
-import App from './App';
+import App, { getStartupFileFromSearch } from './App';
 
 // Render the editor as a plain controlled textarea so tests can drive
 // keystrokes deterministically instead of fighting the real MDEditor.
@@ -37,6 +37,7 @@ afterEach(() => {
   vi.mocked(invoke).mockImplementation(defaultInvoke as never);
   vi.mocked(listen).mockImplementation(() => Promise.resolve(() => {}));
   vi.mocked(open).mockResolvedValue(null);
+  window.history.pushState({}, '', '/');
 });
 
 describe('App', () => {
@@ -46,6 +47,44 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: /发布/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /设置/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /帮助/ })).toBeInTheDocument();
+  });
+
+  it('parses startup file paths from the window query string', () => {
+    const path = '/test/中文 file.md';
+    expect(getStartupFileFromSearch(`?file=${encodeURIComponent(path)}`)).toBe(path);
+  });
+
+  it('loads the startup file passed to a document window', async () => {
+    const FILE = '/test/startup.md';
+    window.history.pushState({}, '', `/?file=${encodeURIComponent(FILE)}`);
+
+    vi.mocked(invoke).mockImplementation(((command: string, args?: unknown) => {
+      if (command === 'read_file') {
+        expect(args).toEqual({ path: FILE });
+        return Promise.resolve('startup content');
+      }
+      return defaultInvoke(command);
+    }) as never);
+
+    render(<App />);
+
+    await screen.findByText(FILE);
+    expect(screen.getByTestId('editor')).toHaveValue('startup content');
+  });
+
+  it('opens a selected markdown file in a separate window', async () => {
+    const FILE = '/test/new-window.md';
+    vi.mocked(open).mockResolvedValue(FILE);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '文件' }));
+    fireEvent.click(screen.getByRole('button', { name: '在新窗口打开文件' }));
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith('open_file_in_new_window', { path: FILE });
+    });
+    expect(screen.getByText('已在新窗口打开')).toBeInTheDocument();
   });
 });
 

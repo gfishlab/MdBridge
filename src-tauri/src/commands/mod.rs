@@ -6,11 +6,18 @@ use crate::image_cache::ImageCache;
 use crate::updater;
 use comrak::Arena;
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
+use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::Serialize;
 use std::fs;
 use std::path::Path;
-use std::sync::Mutex;
-use tauri::{AppHandle, Emitter, State};
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Mutex,
+};
+use std::time::{SystemTime, UNIX_EPOCH};
+use tauri::{AppHandle, Emitter, State, WebviewUrl, WebviewWindowBuilder};
+
+static DOCUMENT_WINDOW_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 pub struct AppState {
     pub config: Mutex<AppConfig>,
@@ -134,6 +141,59 @@ pub async fn convert_and_copy(
 #[tauri::command]
 pub fn read_file(path: String) -> Result<String, String> {
     fs::read_to_string(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn open_file_in_new_window(path: String, app: AppHandle) -> Result<(), String> {
+    let file_path = Path::new(&path);
+    if !file_path.is_file() {
+        return Err("只能在新窗口打开已存在的文件".into());
+    }
+    if !file_path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
+    {
+        return Err("只能在新窗口打开 .md 文件".into());
+    }
+
+    let canonical_path = file_path.canonicalize().map_err(|e| e.to_string())?;
+    let path_string = canonical_path.to_string_lossy().to_string();
+    let encoded_path = utf8_percent_encode(&path_string, NON_ALPHANUMERIC).to_string();
+    let title = canonical_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| format!("{} - MDBridge", name))
+        .unwrap_or_else(|| "MDBridge".into());
+
+    // Each document window owns its own React state. The file path is passed
+    // through the app URL so future platform-specific launch hooks can create
+    // the same kind of window without sharing state with the main tray window.
+    let window = WebviewWindowBuilder::new(
+        &app,
+        new_document_window_label(),
+        WebviewUrl::App(format!("index.html?file={}", encoded_path).into()),
+    )
+    .title(title)
+    .inner_size(1200.0, 800.0)
+    .resizable(true)
+    .focused(true)
+    .build()
+    .map_err(|e| e.to_string())?;
+
+    let _ = window.show();
+    let _ = window.unminimize();
+    let _ = window.set_focus();
+    Ok(())
+}
+
+fn new_document_window_label() -> String {
+    let millis = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis())
+        .unwrap_or_default();
+    let sequence = DOCUMENT_WINDOW_COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("doc-{}-{}-{}", std::process::id(), millis, sequence)
 }
 
 #[tauri::command]

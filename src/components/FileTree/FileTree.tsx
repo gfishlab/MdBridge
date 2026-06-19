@@ -12,6 +12,7 @@ interface FileInfo {
 interface FileTreeProps {
   folderPath: string;
   onFileSelect: (path: string) => void;
+  onFileOpenInNewWindow?: (path: string) => void;
   currentFile: string;
   newFileTrigger: number;
 }
@@ -56,7 +57,13 @@ function findAncestorDirs(files: FileInfo[], targetPath: string): string[] {
   return dirs;
 }
 
-export function FileTree({ folderPath, onFileSelect, currentFile, newFileTrigger }: FileTreeProps) {
+export function FileTree({
+  folderPath,
+  onFileSelect,
+  onFileOpenInNewWindow,
+  currentFile,
+  newFileTrigger,
+}: FileTreeProps) {
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
   const [width, setWidth] = useState(240);
@@ -260,6 +267,7 @@ export function FileTree({ folderPath, onFileSelect, currentFile, newFileTrigger
             key={file.path}
             file={file}
             onFileSelect={onFileSelect}
+            onFileOpenInNewWindow={onFileOpenInNewWindow}
             currentFile={currentFile}
             depth={0}
             expandedDirs={expandedDirs}
@@ -277,6 +285,7 @@ export function FileTree({ folderPath, onFileSelect, currentFile, newFileTrigger
 function FileNode({
   file,
   onFileSelect,
+  onFileOpenInNewWindow,
   currentFile,
   depth,
   expandedDirs,
@@ -286,6 +295,7 @@ function FileNode({
 }: {
   file: FileInfo;
   onFileSelect: (path: string) => void;
+  onFileOpenInNewWindow?: (path: string) => void;
   currentFile: string;
   depth: number;
   expandedDirs: Set<string>;
@@ -328,6 +338,11 @@ function FileNode({
     }
   };
 
+  const handleOpenInNewWindow = () => {
+    setContextMenu(null);
+    onFileOpenInNewWindow?.(file.path);
+  };
+
   if (file.is_dir) {
     const expanded = expandedDirs.has(file.path);
     return (
@@ -348,6 +363,7 @@ function FileNode({
               key={child.path}
               file={child}
               onFileSelect={onFileSelect}
+              onFileOpenInNewWindow={onFileOpenInNewWindow}
               currentFile={currentFile}
               depth={depth + 1}
               expandedDirs={expandedDirs}
@@ -383,6 +399,11 @@ function FileNode({
           <button className="context-menu-item" onClick={handleCopyPath}>
             复制文件路径
           </button>
+          {onFileOpenInNewWindow && (
+            <button className="context-menu-item" onClick={handleOpenInNewWindow}>
+              在新窗口打开
+            </button>
+          )}
           <button className="context-menu-item danger" onClick={handleDelete}>
             删除文件
           </button>

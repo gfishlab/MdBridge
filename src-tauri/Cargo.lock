@@ -2569,7 +2569,7 @@ dependencies = [
 
 [[package]]
 name = "mdbridge"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "arboard",
  "base64 0.22.1",
@@ -2578,6 +2578,7 @@ dependencies = [
  "hex",
  "image",
  "notify",
+ "percent-encoding",
  "png 0.17.16",
  "reqwest 0.12.28",
  "serde",

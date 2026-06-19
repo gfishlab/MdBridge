@@ -30,6 +30,7 @@ pub fn run() {
             commands::get_platforms,
             commands::convert_and_copy,
             commands::read_file,
+            commands::open_file_in_new_window,
             commands::write_file,
             commands::delete_file,
             commands::read_folder,
@@ -50,8 +51,13 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                let _ = window.hide();
-                api.prevent_close();
+                // The main window is the tray entry point, so closing it keeps
+                // the app alive. Extra document windows should close normally
+                // so users can freely open and discard multiple MD windows.
+                if window.label() == "main" {
+                    let _ = window.hide();
+                    api.prevent_close();
+                }
             }
         })
         .build(tauri::generate_context!())

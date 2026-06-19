@@ -12,6 +12,7 @@ import './App.css';
 
 // How long after the user stops typing before edits are persisted to disk.
 const AUTO_SAVE_DELAY = 800;
+const DEFAULT_MARKDOWN = '# Hello MDBridge\n\nStart writing...';
 
 interface Config {
   image_cache_size_mb: number;
@@ -23,8 +24,13 @@ interface FileSystemChange {
   paths: string[];
 }
 
+export function getStartupFileFromSearch(search = window.location.search): string {
+  return new URLSearchParams(search).get('file') ?? '';
+}
+
 function App() {
-  const [markdown, setMarkdown] = useState('# Hello MDBridge\n\nStart writing...');
+  const startupFileRef = useRef(getStartupFileFromSearch());
+  const [markdown, setMarkdown] = useState(DEFAULT_MARKDOWN);
   const [statusMessage, setStatusMessage] = useState('');
   const [currentFile, setCurrentFile] = useState('');
   const [folderPath, setFolderPath] = useState('');
@@ -80,6 +86,27 @@ function App() {
     checkStartupUpdates();
   }, []);
 
+  useEffect(() => {
+    const startupFile = startupFileRef.current;
+    if (!startupFile) return;
+
+    let cancelled = false;
+    invoke<string>('read_file', { path: startupFile })
+      .then((content) => {
+        if (cancelled) return;
+        setMarkdown(content);
+        setCurrentFile(startupFile);
+        hasLocalEditsRef.current = false;
+      })
+      .catch((err) => {
+        if (!cancelled) setStatusMessage(`打开启动文件失败: ${err}`);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Persist any pending debounced auto-save immediately. Called when the user
   // switches files, opens a new file, or manually saves — so that edits to the
   // current file are never lost when the active document changes. Uses refs
@@ -122,6 +149,24 @@ function App() {
       setMarkdown(content);
       setCurrentFile(selected as string);
       hasLocalEditsRef.current = false;
+      setShowFileMenu(false);
+    }
+  };
+
+  const openFileInNewWindow = async (path: string) => {
+    await flushSave();
+    await invoke('open_file_in_new_window', { path });
+    setStatusMessage('已在新窗口打开');
+  };
+
+  const handleOpenFileInNewWindow = async () => {
+    await flushSave();
+    const selected = await open({
+      filters: [{ name: 'Markdown', extensions: ['md'] }],
+    });
+    if (selected) {
+      await invoke('open_file_in_new_window', { path: selected });
+      setStatusMessage('已在新窗口打开');
       setShowFileMenu(false);
     }
   };
@@ -298,6 +343,7 @@ function App() {
               <div className="file-menu">
                 <button onClick={handleNewFile}>新建文档</button>
                 <button onClick={handleOpenFile}>打开文件</button>
+                <button onClick={handleOpenFileInNewWindow}>在新窗口打开文件</button>
                 <button onClick={handleOpenFolder}>打开文件夹</button>
                 <button onClick={handleSave}>保存</button>
               </div>
@@ -332,6 +378,7 @@ function App() {
           <FileTree
             folderPath={folderPath}
             onFileSelect={handleFileSelect}
+            onFileOpenInNewWindow={openFileInNewWindow}
             currentFile={currentFile}
             newFileTrigger={newFileTrigger}
           />

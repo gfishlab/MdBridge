@@ -1,4 +1,4 @@
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, fireEvent } from '@testing-library/react';
 import { invoke } from '@tauri-apps/api/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FileTree } from './FileTree';
@@ -52,5 +52,43 @@ describe('FileTree live refresh', () => {
     });
 
     expect(screen.getByText('codex-live-refresh.md')).toBeInTheDocument();
+  });
+
+  it('opens a file from the context menu in a new window', async () => {
+    vi.mocked(invoke).mockImplementation((command: string) => {
+      if (command !== 'read_folder') return Promise.resolve(null);
+
+      return Promise.resolve([
+        {
+          name: 'new-window.md',
+          path: '/tmp/docs/new-window.md',
+          is_dir: false,
+          children: null,
+        },
+      ]);
+    });
+
+    const onFileSelect = vi.fn();
+    const onFileOpenInNewWindow = vi.fn();
+
+    render(
+      <FileTree
+        folderPath="/tmp/docs"
+        onFileSelect={onFileSelect}
+        onFileOpenInNewWindow={onFileOpenInNewWindow}
+        currentFile=""
+        newFileTrigger={0}
+      />,
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    fireEvent.contextMenu(screen.getByText('new-window.md'));
+    fireEvent.click(screen.getByRole('button', { name: '在新窗口打开' }));
+
+    expect(onFileOpenInNewWindow).toHaveBeenCalledWith('/tmp/docs/new-window.md');
+    expect(onFileSelect).not.toHaveBeenCalled();
   });
 });
