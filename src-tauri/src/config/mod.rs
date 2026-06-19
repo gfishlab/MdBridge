@@ -7,7 +7,9 @@ pub struct AppConfig {
     pub image_cache_size_mb: u64,
     pub default_platform: String,
     pub check_updates_on_startup: bool,
+    #[serde(default)]
     pub recent_files: Vec<String>,
+    #[serde(default)]
     pub recent_folders: Vec<String>,
 }
 

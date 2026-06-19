@@ -9,6 +9,8 @@ vi.mock('@tauri-apps/api/core', () => ({
         image_cache_size_mb: 500,
         default_platform: 'wechat',
         check_updates_on_startup: false,
+        recent_files: [],
+        recent_folders: [],
       });
     }
     if (command === 'get_app_version') return Promise.resolve('0.1.4');

@@ -13,11 +13,14 @@ import './App.css';
 // How long after the user stops typing before edits are persisted to disk.
 const AUTO_SAVE_DELAY = 800;
 const DEFAULT_MARKDOWN = '# Hello MDBridge\n\nStart writing...';
+const MAX_RECENT_ITEMS = 5;
 
 interface Config {
   image_cache_size_mb: number;
   default_platform: string;
   check_updates_on_startup: boolean;
+  recent_files: string[];
+  recent_folders: string[];
 }
 
 interface FileSystemChange {
@@ -49,6 +52,10 @@ function getTabTitle(tab: DocumentTab): string {
   return tab.path ? getFileName(tab.path) : '未命名';
 }
 
+function addRecentPath(items: string[], path: string): string[] {
+  return [path, ...items.filter((item) => item !== path)].slice(0, MAX_RECENT_ITEMS);
+}
+
 function App() {
   const startupFileRef = useRef(getStartupFileFromSearch());
   const nextTabIdRef = useRef(2);
@@ -67,10 +74,14 @@ function App() {
   const [showFileMenu, setShowFileMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [recentFiles, setRecentFiles] = useState<string[]>([]);
+  const [recentFolders, setRecentFolders] = useState<string[]>([]);
   const [tabContextMenu, setTabContextMenu] = useState<TabContextMenuState | null>(null);
   const fileMenuRef = useRef<HTMLDivElement>(null);
   const tabsRef = useRef(tabs);
   const activeTabIdRef = useRef(activeTabId);
+  const recentFilesRef = useRef<string[]>([]);
+  const recentFoldersRef = useRef<string[]>([]);
   const currentFileRef = useRef('');
   const markdownRef = useRef(DEFAULT_MARKDOWN);
   const hasLocalEditsRef = useRef(false);
@@ -88,6 +99,14 @@ function App() {
     markdownRef.current = activeTab?.content ?? '';
     hasLocalEditsRef.current = activeTab?.hasLocalEdits ?? false;
   }, [tabs, activeTabId, activeTab]);
+
+  useEffect(() => {
+    recentFilesRef.current = recentFiles;
+  }, [recentFiles]);
+
+  useEffect(() => {
+    recentFoldersRef.current = recentFolders;
+  }, [recentFolders]);
 
   // Cancel any pending auto-save on unmount so the timer does not leak.
   useEffect(() => {
@@ -111,6 +130,8 @@ function App() {
     async function checkStartupUpdates() {
       try {
         const config = await invoke<Config>('get_config');
+        setRecentFiles(config.recent_files ?? []);
+        setRecentFolders(config.recent_folders ?? []);
         if (config.check_updates_on_startup) {
           await invoke('check_for_updates');
         }
@@ -166,6 +187,46 @@ function App() {
     return !tab.path && !tab.hasLocalEdits && (tab.content === DEFAULT_MARKDOWN || tab.content === '');
   };
 
+  const persistRecentPaths = async (nextFiles: string[], nextFolders: string[]) => {
+    try {
+      await invoke('update_config', {
+        updates: {
+          recent_files: nextFiles,
+          recent_folders: nextFolders,
+        },
+      });
+    } catch (err) {
+      console.error('Failed to update recent paths:', err);
+    }
+  };
+
+  const rememberRecentFile = (path: string) => {
+    setRecentFiles((prev) => {
+      const nextFiles = addRecentPath(prev, path);
+      recentFilesRef.current = nextFiles;
+      persistRecentPaths(nextFiles, recentFoldersRef.current);
+      return nextFiles;
+    });
+  };
+
+  const rememberRecentFolder = (path: string) => {
+    setRecentFolders((prev) => {
+      const nextFolders = addRecentPath(prev, path);
+      recentFoldersRef.current = nextFolders;
+      persistRecentPaths(recentFilesRef.current, nextFolders);
+      return nextFolders;
+    });
+  };
+
+  const openFolderPath = async (path: string) => {
+    await flushSave();
+    await invoke('watch_folder', { path });
+    setFolderPath(path);
+    setShowFileTree(true);
+    rememberRecentFolder(path);
+    setShowFileMenu(false);
+  };
+
   // Persist any pending debounced auto-save immediately. Called when the user
   // switches tabs, opens a new file, or manually saves — so that edits to the
   // active file are never lost when the visible document changes. Uses refs
@@ -192,6 +253,7 @@ function App() {
     const existingTab = tabsRef.current.find((tab) => tab.path === path);
     if (existingTab) {
       setActiveTabId(existingTab.id);
+      rememberRecentFile(path);
       return;
     }
 
@@ -204,6 +266,7 @@ function App() {
       setTabs((prev) => [...prev, { id: tabId, path, content, hasLocalEdits: false }]);
       setActiveTabId(tabId);
     }
+    rememberRecentFile(path);
   };
 
   const handleNewFile = async () => {
@@ -228,6 +291,7 @@ function App() {
   const openFileInNewWindow = async (path: string) => {
     await flushSave();
     await invoke('open_file_in_new_window', { path });
+    rememberRecentFile(path);
     setStatusMessage('已在新窗口打开');
   };
 
@@ -238,20 +302,33 @@ function App() {
     });
     if (selected) {
       await invoke('open_file_in_new_window', { path: selected });
+      rememberRecentFile(selected as string);
       setStatusMessage('已在新窗口打开');
       setShowFileMenu(false);
     }
   };
 
   const handleOpenFolder = async () => {
-    await flushSave();
     const selected = await open({ directory: true });
     if (selected) {
-      const path = selected as string;
-      await invoke('watch_folder', { path });
-      setFolderPath(path);
-      setShowFileTree(true);
+      await openFolderPath(selected as string);
+    }
+  };
+
+  const handleOpenRecentFile = async (path: string) => {
+    try {
+      await openDocumentInTab(path);
       setShowFileMenu(false);
+    } catch (err) {
+      setStatusMessage(`打开最近文件失败: ${err}`);
+    }
+  };
+
+  const handleOpenRecentFolder = async (path: string) => {
+    try {
+      await openFolderPath(path);
+    } catch (err) {
+      setStatusMessage(`打开最近文件夹失败: ${err}`);
     }
   };
 
@@ -279,6 +356,7 @@ function App() {
       });
       if (selected) {
         await invoke('write_file', { path: selected, content: tab.content });
+        rememberRecentFile(selected as string);
         updateTab(tabId, (item) => ({
           ...item,
           path: selected as string,
@@ -504,6 +582,40 @@ function App() {
                 <button onClick={handleOpenFileInNewWindow}>在新窗口打开文件</button>
                 <button onClick={handleOpenFolder}>打开文件夹</button>
                 <button onClick={handleSave}>保存</button>
+                {(recentFiles.length > 0 || recentFolders.length > 0) && (
+                  <>
+                    {recentFiles.length > 0 && (
+                      <div className="file-menu-section">
+                        <div className="file-menu-section-title">最近打开的文件</div>
+                        {recentFiles.map((path) => (
+                          <button
+                            key={`file-${path}`}
+                            className="recent-path-item"
+                            title={path}
+                            onClick={() => handleOpenRecentFile(path)}
+                          >
+                            {getFileName(path)}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {recentFolders.length > 0 && (
+                      <div className="file-menu-section">
+                        <div className="file-menu-section-title">最近打开的文件夹</div>
+                        {recentFolders.map((path) => (
+                          <button
+                            key={`folder-${path}`}
+                            className="recent-path-item"
+                            title={path}
+                            onClick={() => handleOpenRecentFolder(path)}
+                          >
+                            {getFileName(path)}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             )}
           </div>

@@ -423,7 +423,9 @@ html, body, #root {
   border-radius: 4px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.15);
   z-index: 100;
-  min-width: 140px;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 4px 0;
 }
 
 .file-menu button {
@@ -435,10 +437,28 @@ html, body, #root {
   text-align: left;
   cursor: pointer;
   font-size: 13px;
+  white-space: nowrap;
 }
 
 .file-menu button:hover {
   background: #f0f0f0;
+}
+
+.file-menu-section {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid #eeeeee;
+}
+
+.file-menu-section-title {
+  padding: 6px 16px 4px;
+  color: #888;
+  font-size: 11px;
+}
+
+.file-menu .recent-path-item {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .file-path {

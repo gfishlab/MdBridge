@@ -22,11 +22,13 @@ vi.mock('./components/Editor', () => ({
 function defaultInvoke(command: string) {
   if (command === 'get_platforms') return Promise.resolve([]);
   if (command === 'get_config') {
-    return Promise.resolve({
-      image_cache_size_mb: 500,
-      default_platform: 'wechat',
-      check_updates_on_startup: false,
-    });
+      return Promise.resolve({
+        image_cache_size_mb: 500,
+        default_platform: 'wechat',
+        check_updates_on_startup: false,
+        recent_files: [],
+        recent_folders: [],
+      });
   }
   if (command === 'get_app_version') return Promise.resolve('0.1.4');
   if (command === 'check_for_updates') return Promise.resolve(false);
@@ -128,6 +130,72 @@ describe('App', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('editor')).toHaveValue(`${FILE_A} content`);
+    });
+  });
+
+  it('adds opened markdown files to the recent file menu', async () => {
+    const FILE = '/test/recent-file.md';
+    vi.mocked(open).mockResolvedValue(FILE);
+
+    vi.mocked(invoke).mockImplementation(((command: string) => {
+      if (command === 'read_file') return Promise.resolve('recent file content');
+      return defaultInvoke(command);
+    }) as never);
+
+    render(<App />);
+
+    await openSelectedMarkdownFile();
+    await screen.findByText(FILE);
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith('update_config', {
+        updates: {
+          recent_files: [FILE],
+          recent_folders: [],
+        },
+      });
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '文件' }));
+    expect(screen.getByText('最近打开的文件')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'recent-file.md' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('editor')).toHaveValue('recent file content');
+    });
+  });
+
+  it('opens recent folders from the file menu', async () => {
+    const FOLDER = '/test/recent-folder';
+
+    vi.mocked(invoke).mockImplementation(((command: string) => {
+      if (command === 'get_config') {
+        return Promise.resolve({
+          image_cache_size_mb: 500,
+          default_platform: 'wechat',
+          check_updates_on_startup: false,
+          recent_files: [],
+          recent_folders: [FOLDER],
+        });
+      }
+      if (command === 'read_folder') return Promise.resolve([]);
+      return defaultInvoke(command);
+    }) as never);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '文件' }));
+    await screen.findByText('最近打开的文件夹');
+    fireEvent.click(screen.getByRole('button', { name: 'recent-folder' }));
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith('watch_folder', { path: FOLDER });
+      expect(invoke).toHaveBeenCalledWith('update_config', {
+        updates: {
+          recent_files: [],
+          recent_folders: [FOLDER],
+        },
+      });
     });
   });
 

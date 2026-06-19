@@ -333,6 +333,18 @@ pub fn update_config(updates: serde_json::Value, state: State<'_, AppState>) -> 
     {
         config.check_updates_on_startup = check;
     }
+    if let Some(recent_files) = updates.get("recent_files").and_then(|v| v.as_array()) {
+        config.recent_files = recent_files
+            .iter()
+            .filter_map(|value| value.as_str().map(ToString::to_string))
+            .collect();
+    }
+    if let Some(recent_folders) = updates.get("recent_folders").and_then(|v| v.as_array()) {
+        config.recent_folders = recent_folders
+            .iter()
+            .filter_map(|value| value.as_str().map(ToString::to_string))
+            .collect();
+    }
     config.save();
     Ok(())
 }
