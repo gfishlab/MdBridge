@@ -388,6 +388,7 @@ fn materialize_highlighted_line_whitespace(highlighted: &str, html: &mut String)
 /// - **单个空格** → 保留普通空格。单词间的单个空格不会被微信合并，转成 U+00A0
 ///   反而会导致字符间距变宽、排版松散。
 /// - Tab `\t` → 4 个 `U+00A0`（与常见编辑器 Tab 宽度一致）。
+///
 /// 其余字符照常 HTML 转义。
 fn materialize_plain_line(line: &str, html: &mut String) {
     let mut chars = line.chars().peekable();
@@ -425,15 +426,13 @@ fn render_list<'a>(
     html: &mut String,
 ) {
     let ordered = matches!(list.list_type, ListType::Ordered);
-    let mut index = list.start;
-    for item in node.children() {
+    for (index, item) in (list.start..).zip(node.children()) {
         let marker = if ordered {
             format!("{}. ", index)
         } else {
             "• ".to_string()
         };
         render_list_item(item, &marker, depth, html);
-        index += 1;
     }
 }
 
