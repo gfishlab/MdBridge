@@ -3,16 +3,36 @@ pub mod menu;
 use tauri::{
     image::Image,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager,
+    AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
 };
 
 const TRAY_ICON_PNG: &[u8] = include_bytes!("../../icons/tray-icon.png");
 
-pub fn show_main_window(app: &AppHandle) {
+pub fn restore_window(window: &WebviewWindow) {
+    // Tauri's v2 examples use this order. It matters on macOS after updater
+    // restarts because a hidden/minimized NSWindow can ignore focus until it is
+    // first unminimized and shown again.
+    let _ = window.unminimize();
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
+pub fn restore_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.unminimize();
-        let _ = window.set_focus();
+        restore_window(&window);
+        return;
+    }
+
+    // Defensive fallback for updater relaunch edge cases where the process is
+    // alive but the configured main window was not recreated yet.
+    if let Ok(window) = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+        .title("MDBridge")
+        .inner_size(1200.0, 800.0)
+        .resizable(true)
+        .focused(true)
+        .build()
+    {
+        restore_window(&window);
     }
 }
 
@@ -40,7 +60,7 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
             } = event
             {
                 let app = tray.app_handle();
-                show_main_window(app);
+                restore_main_window(app);
             }
         })
         .build(app)?;

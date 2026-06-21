@@ -14,7 +14,7 @@ pub fn build_tray_menu(app: &AppHandle) -> Result<Menu<tauri::Wry>, Box<dyn std:
 pub fn handle_tray_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
     match event.id().as_ref() {
         "show" => {
-            super::show_main_window(app);
+            super::restore_main_window(app);
         }
         "quit" => {
             app.exit(0);

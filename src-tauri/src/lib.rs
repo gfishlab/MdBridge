@@ -73,7 +73,7 @@ pub fn run() {
         .run(|_app, _event| {
             #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Reopen { .. } = _event {
-                tray::show_main_window(_app);
+                tray::restore_main_window(_app);
             }
         })
 }

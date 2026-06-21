@@ -3,6 +3,7 @@ use crate::config::{is_supported_text_style, is_supported_theme, AppConfig};
 use crate::converter::ast::{extract_image_urls, parse_markdown};
 use crate::converter::platforms;
 use crate::image_cache::ImageCache;
+use crate::tray;
 use crate::updater;
 use comrak::Arena;
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
@@ -221,9 +222,7 @@ fn open_document_window(
         .build()
         .map_err(|e| e.to_string())?;
 
-    let _ = window.show();
-    let _ = window.unminimize();
-    let _ = window.set_focus();
+    tray::restore_window(&window);
     Ok(())
 }
 
