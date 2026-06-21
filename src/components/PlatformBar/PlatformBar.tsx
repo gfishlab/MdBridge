@@ -47,7 +47,7 @@ export function PlatformBar({ markdown, onStatusChange }: PlatformBarProps) {
   return (
     <div className="platform-bar" ref={menuRef}>
       <button
-        className="menu-btn"
+        className="menu-btn publish-btn"
         onClick={() => setIsOpen(!isOpen)}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

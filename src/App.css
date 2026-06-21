@@ -27,6 +27,11 @@ html, body, #root {
   --text-faint: #999999;
   --accent: #1890ff;
   --accent-contrast: #ffffff;
+  --accent-soft: rgba(24, 144, 255, 0.12);
+  --icon-muted: #7a8794;
+  --folder: #d39a32;
+  --folder-soft: rgba(211, 154, 50, 0.18);
+  --document: #6b7a90;
   --danger: #e53e3e;
   --danger-soft: #fff5f5;
   --overlay: rgba(0,0,0,0.5);
@@ -62,6 +67,11 @@ html, body, #root {
   --text-faint: #7a7a7a;
   --accent: #4aa3ff;
   --accent-contrast: #000000;
+  --accent-soft: rgba(74, 163, 255, 0.18);
+  --icon-muted: #9aa7b4;
+  --folder: #d5a447;
+  --folder-soft: rgba(213, 164, 71, 0.2);
+  --document: #94a3b8;
   --danger: #ff6b6b;
   --danger-soft: #321919;
   --overlay: rgba(0,0,0,0.68);
@@ -179,7 +189,9 @@ html, body, #root {
 .toolbar {
   display: flex;
   align-items: center;
-  padding: 8px 16px;
+  justify-content: space-between;
+  min-height: 42px;
+  padding: 6px 12px;
   border-bottom: 1px solid var(--border);
   background: var(--surface-muted);
   -webkit-app-region: drag;
@@ -187,6 +199,7 @@ html, body, #root {
 
 .toolbar-left {
   display: flex;
+  align-items: center;
   gap: 4px;
   -webkit-app-region: no-drag;
 }
@@ -196,16 +209,44 @@ html, body, #root {
   align-items: center;
   gap: 6px;
   background: none;
-  border: none;
-  border-radius: 4px;
-  padding: 6px 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 6px 10px;
   cursor: pointer;
   font-size: 13px;
   color: var(--text-secondary);
+  line-height: 1;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .menu-btn:hover {
   background: var(--surface-hover);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.menu-btn:focus-visible,
+.tree-toolbar-btn:focus-visible,
+.doc-tab-close:focus-visible,
+.doc-tab-add:focus-visible,
+.file-menu button:focus-visible,
+.context-menu-item:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+
+.publish-btn {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 600;
+}
+
+.publish-btn:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+  filter: brightness(0.97);
 }
 
 .content {
@@ -239,6 +280,22 @@ html, body, #root {
   line-height: var(--preview-line-height);
 }
 
+.editor-container .w-md-editor-toolbar {
+  min-height: 34px;
+  border-bottom-color: var(--border) !important;
+  background-color: var(--surface-muted) !important;
+}
+
+.editor-container .w-md-editor-toolbar li > button {
+  border-radius: 5px;
+  color: var(--text-muted) !important;
+}
+
+.editor-container .w-md-editor-toolbar li > button:hover {
+  background-color: var(--surface-hover) !important;
+  color: var(--text) !important;
+}
+
 .tab-strip {
   display: flex;
   align-items: center;
@@ -255,7 +312,7 @@ html, body, #root {
 .doc-tab {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   max-width: 240px;
   min-width: 96px;
   height: 28px;
@@ -266,6 +323,7 @@ html, body, #root {
   cursor: pointer;
   user-select: none;
   flex-shrink: 0;
+  position: relative;
 }
 
 .doc-tab:hover {
@@ -277,6 +335,25 @@ html, body, #root {
   border-color: var(--border-strong);
   border-bottom-color: var(--surface);
   color: var(--text);
+}
+
+.doc-tab.active::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.doc-tab-dirty {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
 }
 
 .doc-tab-title {
@@ -358,11 +435,30 @@ html, body, #root {
 }
 
 .status-bar {
-  padding: 4px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 28px;
+  padding: 4px 12px;
   border-top: 1px solid var(--border);
   background: var(--surface-muted);
   font-size: 12px;
   color: var(--text-muted);
+}
+
+.status-message {
+  color: var(--text-secondary);
+  min-width: 68px;
+}
+
+.status-meta,
+.status-save {
+  color: var(--text-subtle);
+}
+
+.status-save.dirty {
+  color: var(--accent);
+  font-weight: 600;
 }
 
 .platform-bar {
@@ -376,16 +472,17 @@ html, body, #root {
   margin-top: 4px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 8px;
   box-shadow: var(--shadow-menu);
   z-index: 100;
-  min-width: 120px;
+  min-width: 150px;
+  padding: 4px;
 }
 
 .platform-item {
   display: block;
   width: 100%;
-  padding: 8px 16px;
+  padding: 8px 12px;
   border: none;
   background: none;
   text-align: left;
@@ -395,6 +492,7 @@ html, body, #root {
 }
 
 .platform-item:hover {
+  border-radius: 5px;
   background: var(--surface-hover);
 }
 
@@ -427,15 +525,48 @@ html, body, #root {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 2px;
-  padding: 4px 8px;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 8px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
-.tree-toolbar-left {
+.tree-toolbar-title {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+  color: var(--text-secondary);
+}
+
+.tree-toolbar-title-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.1;
+}
+
+.tree-toolbar-title-text span {
+  font-size: 10px;
+  color: var(--text-subtle);
+}
+
+.tree-toolbar-title-text strong {
+  overflow: hidden;
+  max-width: 126px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.tree-toolbar-actions {
+  position: relative;
   display: flex;
   gap: 2px;
+  flex-shrink: 0;
 }
 
 .tree-toolbar-btn {
@@ -444,7 +575,7 @@ html, body, #root {
   justify-content: center;
   width: 24px;
   height: 24px;
-  border: none;
+  border: 1px solid transparent;
   background: none;
   border-radius: 4px;
   cursor: pointer;
@@ -454,13 +585,98 @@ html, body, #root {
 .tree-toolbar-btn:hover {
   background: var(--surface-hover);
   color: var(--text-secondary);
+  border-color: var(--border);
+}
+
+.toolbar-icon {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tree-icon {
+  display: block;
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tree-icon.folder {
+  color: var(--folder);
+  fill: var(--folder-soft);
+}
+
+.tree-icon.document {
+  color: var(--document);
+}
+
+.markdown-file-icon {
+  position: relative;
+  display: inline-flex;
+  width: 19px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+}
+
+.markdown-file-icon span {
+  position: absolute;
+  right: -1px;
+  bottom: 0;
+  padding: 0 2px;
+  border-radius: 2px;
+  background: var(--surface);
+  color: var(--accent);
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.1;
+}
+
+.tree-action-menu {
+  position: absolute;
+  top: 28px;
+  right: 0;
+  z-index: 120;
+  min-width: 148px;
+  padding: 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-context);
+}
+
+.tree-action-menu button {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  text-align: left;
+}
+
+.tree-action-menu button:hover {
+  background: var(--surface-hover);
 }
 
 .new-file-input {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 8px;
+  height: 30px;
+  padding: 3px 8px;
   background: var(--surface-info);
   border-bottom: 1px solid var(--border-focus);
 }
@@ -485,6 +701,7 @@ html, body, #root {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
+  padding: 4px 4px 8px;
 }
 
 .file-tree-resizer {
@@ -507,14 +724,17 @@ html, body, #root {
 .tree-item {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 13px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--text-secondary);
+  position: relative;
 }
 
 .tree-item:hover {
@@ -522,7 +742,20 @@ html, body, #root {
 }
 
 .tree-item.active {
-  background: var(--surface-active);
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.tree-item.active::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: 999px;
+  background: var(--accent);
 }
 
 .tree-item.dir {
@@ -530,19 +763,31 @@ html, body, #root {
 }
 
 .tree-arrow {
-  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  color: var(--icon-muted);
   flex-shrink: 0;
 }
 
 .tree-folder-icon,
 .tree-file-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
   flex-shrink: 0;
-  font-size: 13px;
 }
 
 .tree-name {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.tree-item.system-item {
+  color: var(--text-subtle);
 }
 
 .context-menu {
@@ -550,17 +795,18 @@ html, body, #root {
   z-index: 200;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
   box-shadow: var(--shadow-context);
   min-width: 160px;
-  padding: 4px 0;
+  padding: 4px;
 }
 
 .context-menu-item {
   display: block;
   width: 100%;
-  padding: 8px 16px;
+  padding: 8px 10px;
   border: none;
+  border-radius: 5px;
   background: none;
   text-align: left;
   font-size: 13px;
@@ -605,19 +851,24 @@ html, body, #root {
   margin-top: 4px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 8px;
   box-shadow: var(--shadow-menu);
   z-index: 100;
   min-width: 220px;
   max-width: 320px;
-  padding: 4px 0;
+  padding: 4px;
+}
+
+.compact-menu {
+  min-width: 170px;
 }
 
 .file-menu button {
   display: block;
   width: 100%;
-  padding: 8px 16px;
+  padding: 8px 10px;
   border: none;
+  border-radius: 5px;
   background: none;
   text-align: left;
   cursor: pointer;
@@ -637,7 +888,7 @@ html, body, #root {
 }
 
 .file-menu-section-title {
-  padding: 6px 16px 4px;
+  padding: 6px 10px 4px;
   color: var(--text-subtle);
   font-size: 11px;
 }
@@ -648,8 +899,11 @@ html, body, #root {
 }
 
 .file-path {
-  margin-left: 16px;
+  margin-left: auto;
   color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .update-overlay {

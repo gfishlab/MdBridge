@@ -68,8 +68,11 @@ export function FileTree({
   const [collapsed, setCollapsed] = useState(false);
   const [newFileName, setNewFileName] = useState('');
   const [showNewFileInput, setShowNewFileInput] = useState(false);
+  const [showTreeMenu, setShowTreeMenu] = useState(false);
+  const [hideSystemItems, setHideSystemItems] = useState(false);
   const newFileInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const treeMenuRef = useRef<HTMLDivElement>(null);
   const activeItemRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
 
@@ -111,6 +114,16 @@ export function FileTree({
     };
   }, [folderPath, loadFiles]);
 
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (treeMenuRef.current && !treeMenuRef.current.contains(e.target as Node)) {
+        setShowTreeMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const handleNewFile = () => {
     setShowNewFileInput(true);
     setNewFileName('');
@@ -132,8 +145,10 @@ export function FileTree({
     onFileSelect(filePath);
   };
 
-  const expandAll = () => setExpandedDirs(new Set(collectDirPaths(files)));
+  const visibleFiles = hideSystemItems ? filterSystemItems(files) : files;
+  const expandAll = () => setExpandedDirs(new Set(collectDirPaths(visibleFiles)));
   const collapseAll = () => setExpandedDirs(new Set());
+  const folderName = getFileName(folderPath);
 
   const toggleDir = (path: string) => {
     setExpandedDirs(prev => {
@@ -187,10 +202,7 @@ export function FileTree({
           onClick={() => setCollapsed(false)}
           title="展开文件树"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="13 17 18 12 13 7" />
-            <polyline points="6 17 11 12 6 7" />
-          </svg>
+          <PanelOpenIcon />
         </button>
       </div>
     );
@@ -199,43 +211,55 @@ export function FileTree({
   return (
     <div className="file-tree-wrapper" style={{ width }}>
       <div className="file-tree-toolbar">
-        <div className="tree-toolbar-left">
-          <button className="tree-toolbar-btn" onClick={() => setCollapsed(true)} title="折叠文件树">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="11 17 6 12 11 7" />
-              <polyline points="18 17 13 12 18 7" />
-            </svg>
-          </button>
-          <button className="tree-toolbar-btn" onClick={expandAll} title="展开全部">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M6 9l6 6 6-6"/>
-          </svg>
-        </button>
-        <button className="tree-toolbar-btn" onClick={collapseAll} title="折叠全部">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M18 15l-6-6-6 6"/>
-          </svg>
-        </button>
-        <button className="tree-toolbar-btn" onClick={locateFile} title="定位当前文件">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
-            </svg>
-          </button>
+        <div className="tree-toolbar-title" title={folderPath}>
+          <FolderIcon open />
+          <div className="tree-toolbar-title-text">
+            <span>文件</span>
+            <strong>{folderName}</strong>
+          </div>
         </div>
-        <button className="tree-toolbar-btn" onClick={handleNewFile} title="新建文档">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-            <line x1="12" y1="18" x2="12" y2="12"/>
-            <line x1="9" y1="15" x2="15" y2="15"/>
-          </svg>
-        </button>
+        <div className="tree-toolbar-actions" ref={treeMenuRef}>
+          <button className="tree-toolbar-btn" onClick={handleNewFile} title="新建文档" aria-label="新建文档">
+            <NewFileIcon />
+          </button>
+          <button className="tree-toolbar-btn" onClick={locateFile} title="定位当前文件" aria-label="定位当前文件">
+            <TargetIcon />
+          </button>
+          <button
+            className="tree-toolbar-btn"
+            onClick={() => setShowTreeMenu((open) => !open)}
+            title="更多文件树操作"
+            aria-label="更多文件树操作"
+          >
+            <MoreIcon />
+          </button>
+          <button className="tree-toolbar-btn" onClick={() => setCollapsed(true)} title="折叠文件树" aria-label="折叠文件树">
+            <PanelCloseIcon />
+          </button>
+          {showTreeMenu && (
+            <div className="tree-action-menu" role="menu">
+              <button type="button" role="menuitem" onClick={expandAll}>
+                展开全部
+              </button>
+              <button type="button" role="menuitem" onClick={collapseAll}>
+                折叠全部
+              </button>
+              <button
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={hideSystemItems}
+                onClick={() => setHideSystemItems((value) => !value)}
+              >
+                {hideSystemItems ? '显示系统目录' : '隐藏系统目录'}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
       <div className="file-tree" ref={containerRef}>
         {showNewFileInput && (
           <div className="tree-item new-file-input" style={{ paddingLeft: 8 }}>
-            <span className="tree-file-icon">📄</span>
+            <span className="tree-file-icon"><MarkdownFileIcon /></span>
             <input
               ref={newFileInputRef}
               className="new-file-name"
@@ -254,7 +278,7 @@ export function FileTree({
             />
           </div>
         )}
-        {files.map((file) => (
+        {visibleFiles.map((file) => (
           <FileNode
             key={file.path}
             file={file}
@@ -266,12 +290,31 @@ export function FileTree({
             toggleDir={toggleDir}
             activeItemRef={activeItemRef}
             onRefresh={loadFiles}
+            hideSystemItems={hideSystemItems}
           />
         ))}
       </div>
       <div className="file-tree-resizer" onMouseDown={onMouseDown} />
     </div>
   );
+}
+
+function filterSystemItems(files: FileInfo[]): FileInfo[] {
+  return files
+    .filter((file) => !isSystemItem(file.name))
+    .map((file) => (
+      file.is_dir && file.children
+        ? { ...file, children: filterSystemItems(file.children) }
+        : file
+    ));
+}
+
+function getFileName(path: string): string {
+  return path.split(/[\\/]/).pop() || path;
+}
+
+function isSystemItem(name: string): boolean {
+  return name.startsWith('.') || ['node_modules', 'dist', 'target'].includes(name);
 }
 
 function FileNode({
@@ -284,6 +327,7 @@ function FileNode({
   toggleDir,
   activeItemRef,
   onRefresh,
+  hideSystemItems,
 }: {
   file: FileInfo;
   onFileSelect: (path: string) => void;
@@ -294,6 +338,7 @@ function FileNode({
   toggleDir: (path: string) => void;
   activeItemRef: React.MutableRefObject<HTMLDivElement | null>;
   onRefresh: () => void;
+  hideSystemItems: boolean;
 }) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const isActive = file.path === currentFile;
@@ -337,20 +382,21 @@ function FileNode({
 
   if (file.is_dir) {
     const expanded = expandedDirs.has(file.path);
+    const childFiles = hideSystemItems ? filterSystemItems(file.children ?? []) : file.children;
     return (
       <div>
         <div
-          className="tree-item dir"
+          className={`tree-item dir ${isSystemItem(file.name) ? 'system-item' : ''}`}
           style={{ paddingLeft: depth * 16 + 8 }}
           onClick={() => toggleDir(file.path)}
           title={file.name}
         >
-          <span className="tree-arrow">{expanded ? '▼' : '▶'}</span>
-          <span className="tree-folder-icon">📁</span>
+          <span className="tree-arrow"><ChevronIcon expanded={expanded} /></span>
+          <span className="tree-folder-icon"><FolderIcon open={expanded} /></span>
           <span className="tree-name">{file.name}</span>
         </div>
         {expanded &&
-          file.children?.map((child) => (
+          childFiles?.map((child) => (
             <FileNode
               key={child.path}
               file={child}
@@ -362,6 +408,7 @@ function FileNode({
               toggleDir={toggleDir}
               activeItemRef={activeItemRef}
               onRefresh={onRefresh}
+              hideSystemItems={hideSystemItems}
             />
           ))}
       </div>
@@ -380,7 +427,7 @@ function FileNode({
         onContextMenu={handleContextMenu}
         title={file.name}
       >
-        <span className="tree-file-icon">📄</span>
+        <span className="tree-file-icon"><MarkdownFileIcon /></span>
         <span className="tree-name">{file.name}</span>
       </div>
       {contextMenu && (
@@ -402,5 +449,81 @@ function FileNode({
         </div>
       )}
     </>
+  );
+}
+
+function ChevronIcon({ expanded }: { expanded: boolean }) {
+  return (
+    <svg className="tree-icon" viewBox="0 0 16 16" aria-hidden="true">
+      <path d={expanded ? 'M4 6l4 4 4-4' : 'M6 4l4 4-4 4'} />
+    </svg>
+  );
+}
+
+function FolderIcon({ open = false }: { open?: boolean }) {
+  return (
+    <svg className="tree-icon folder" viewBox="0 0 20 20" aria-hidden="true">
+      <path d="M2.5 5.5A2.5 2.5 0 0 1 5 3h3.2l1.6 1.8H15A2.5 2.5 0 0 1 17.5 7v7A2.5 2.5 0 0 1 15 16.5H5A2.5 2.5 0 0 1 2.5 14V5.5Z" />
+      {open && <path d="M3.2 8h13.6l-1.4 6.1A1.8 1.8 0 0 1 13.6 15.5H4.8a1.8 1.8 0 0 1-1.8-2.1L3.2 8Z" />}
+    </svg>
+  );
+}
+
+function MarkdownFileIcon() {
+  return (
+    <span className="markdown-file-icon" aria-hidden="true">
+      <svg className="tree-icon document" viewBox="0 0 20 20">
+        <path d="M5 2.5h6.2L15 6.3V15a2.5 2.5 0 0 1-2.5 2.5H5A2.5 2.5 0 0 1 2.5 15V5A2.5 2.5 0 0 1 5 2.5Z" />
+        <path d="M11 2.8V6a1 1 0 0 0 1 1h3" />
+      </svg>
+      <span>MD</span>
+    </span>
+  );
+}
+
+function NewFileIcon() {
+  return (
+    <svg className="toolbar-icon" viewBox="0 0 20 20" aria-hidden="true">
+      <path d="M5 2.5h6.2L15 6.3V15a2.5 2.5 0 0 1-2.5 2.5H5A2.5 2.5 0 0 1 2.5 15V5A2.5 2.5 0 0 1 5 2.5Z" />
+      <path d="M11 2.8V6a1 1 0 0 0 1 1h3M8.5 10.5v4M6.5 12.5h4" />
+    </svg>
+  );
+}
+
+function TargetIcon() {
+  return (
+    <svg className="toolbar-icon" viewBox="0 0 20 20" aria-hidden="true">
+      <circle cx="10" cy="10" r="5.5" />
+      <circle cx="10" cy="10" r="1.8" />
+      <path d="M10 1.5v3M10 15.5v3M1.5 10h3M15.5 10h3" />
+    </svg>
+  );
+}
+
+function MoreIcon() {
+  return (
+    <svg className="toolbar-icon" viewBox="0 0 20 20" aria-hidden="true">
+      <circle cx="5" cy="10" r="1.4" />
+      <circle cx="10" cy="10" r="1.4" />
+      <circle cx="15" cy="10" r="1.4" />
+    </svg>
+  );
+}
+
+function PanelCloseIcon() {
+  return (
+    <svg className="toolbar-icon" viewBox="0 0 20 20" aria-hidden="true">
+      <path d="M4 3.5h12A1.5 1.5 0 0 1 17.5 5v10A1.5 1.5 0 0 1 16 16.5H4A1.5 1.5 0 0 1 2.5 15V5A1.5 1.5 0 0 1 4 3.5Z" />
+      <path d="M7 4v12M13 7l-3 3 3 3" />
+    </svg>
+  );
+}
+
+function PanelOpenIcon() {
+  return (
+    <svg className="toolbar-icon" viewBox="0 0 20 20" aria-hidden="true">
+      <path d="M4 3.5h12A1.5 1.5 0 0 1 17.5 5v10A1.5 1.5 0 0 1 16 16.5H4A1.5 1.5 0 0 1 2.5 15V5A1.5 1.5 0 0 1 4 3.5Z" />
+      <path d="M7 4v12M10 7l3 3-3 3" />
+    </svg>
   );
 }

@@ -89,4 +89,46 @@ describe('FileTree live refresh', () => {
     expect(onFileOpenInNewWindow).toHaveBeenCalledWith('/tmp/docs/new-window.md');
     expect(onFileSelect).not.toHaveBeenCalled();
   });
+
+  it('can hide system folders from the file tree menu', async () => {
+    vi.mocked(invoke).mockImplementation((command: string) => {
+      if (command !== 'read_folder') return Promise.resolve(null);
+
+      return Promise.resolve([
+        {
+          name: '.git',
+          path: '/tmp/docs/.git',
+          is_dir: true,
+          children: [],
+        },
+        {
+          name: 'article.md',
+          path: '/tmp/docs/article.md',
+          is_dir: false,
+          children: null,
+        },
+      ]);
+    });
+
+    render(
+      <FileTree
+        folderPath="/tmp/docs"
+        onFileSelect={vi.fn()}
+        currentFile=""
+      />,
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText('.git')).toBeInTheDocument();
+    expect(screen.getByText('article.md')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '更多文件树操作' }));
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: '隐藏系统目录' }));
+
+    expect(screen.queryByText('.git')).not.toBeInTheDocument();
+    expect(screen.getByText('article.md')).toBeInTheDocument();
+  });
 });

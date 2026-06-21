@@ -86,6 +86,8 @@ function App() {
   const [folderPath, setFolderPath] = useState('');
   const [showFileTree, setShowFileTree] = useState(false);
   const [showFileMenu, setShowFileMenu] = useState(false);
+  const [showEditMenu, setShowEditMenu] = useState(false);
+  const [showViewMenu, setShowViewMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
@@ -95,6 +97,8 @@ function App() {
   const [textStyle, setTextStyle] = useState<TextStylePreference>('standard');
   const [prefersDarkMode, setPrefersDarkMode] = useState(false);
   const fileMenuRef = useRef<HTMLDivElement>(null);
+  const editMenuRef = useRef<HTMLDivElement>(null);
+  const viewMenuRef = useRef<HTMLDivElement>(null);
   const tabsRef = useRef(tabs);
   const activeTabIdRef = useRef(activeTabId);
   const recentFilesRef = useRef<string[]>([]);
@@ -108,6 +112,7 @@ function App() {
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
   const markdown = activeTab?.content ?? '';
   const currentFile = activeTab?.path ?? '';
+  const markdownStats = getMarkdownStats(markdown);
   const themeAppearance = resolveThemeAppearance(themePreference, prefersDarkMode);
 
   useEffect(() => {
@@ -146,6 +151,12 @@ function App() {
     function handleClickOutside(e: MouseEvent) {
       if (fileMenuRef.current && !fileMenuRef.current.contains(e.target as Node)) {
         setShowFileMenu(false);
+      }
+      if (editMenuRef.current && !editMenuRef.current.contains(e.target as Node)) {
+        setShowEditMenu(false);
+      }
+      if (viewMenuRef.current && !viewMenuRef.current.contains(e.target as Node)) {
+        setShowViewMenu(false);
       }
       setTabContextMenu(null);
     }
@@ -277,6 +288,7 @@ function App() {
     setShowFileTree(true);
     rememberRecentFolder(path);
     setShowFileMenu(false);
+    setShowViewMenu(false);
   };
 
   // Persist any pending debounced auto-save immediately. Called when the user
@@ -324,6 +336,7 @@ function App() {
   const handleNewFile = async () => {
     await flushSave();
     setShowFileMenu(false);
+    setShowEditMenu(false);
     const tabId = createTabId();
     setTabs((prev) => [...prev, { id: tabId, path: '', content: '', hasLocalEdits: false }]);
     setActiveTabId(tabId);
@@ -436,6 +449,23 @@ function App() {
       }
     }
     setShowFileMenu(false);
+    setShowEditMenu(false);
+  };
+
+  const handleCopyCurrentPath = async () => {
+    if (!currentFileRef.current) {
+      setStatusMessage('当前文档还没有文件路径');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(currentFileRef.current);
+      setStatusMessage('已复制当前文件路径');
+    } catch {
+      setStatusMessage('复制文件路径失败');
+    } finally {
+      setShowEditMenu(false);
+    }
   };
 
   const handleEditorChange = (value: string) => {
@@ -652,7 +682,11 @@ function App() {
           <div className="file-menu-container" ref={fileMenuRef}>
             <button
               className="menu-btn"
-              onClick={() => setShowFileMenu(!showFileMenu)}
+              onClick={() => {
+                setShowFileMenu(!showFileMenu);
+                setShowEditMenu(false);
+                setShowViewMenu(false);
+              }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
@@ -705,7 +739,69 @@ function App() {
               </div>
             )}
           </div>
+          <div className="file-menu-container" ref={editMenuRef}>
+            <button
+              className="menu-btn"
+              onClick={() => {
+                setShowEditMenu(!showEditMenu);
+                setShowFileMenu(false);
+                setShowViewMenu(false);
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 20h9"/>
+                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+              </svg>
+              编辑
+            </button>
+            {showEditMenu && (
+              <div className="file-menu compact-menu">
+                <button onClick={handleNewFile}>新建标签页</button>
+                <button onClick={handleSave}>保存当前文档</button>
+                <button onClick={handleCopyCurrentPath}>复制当前文件路径</button>
+              </div>
+            )}
+          </div>
           <PlatformBar markdown={markdown} onStatusChange={setStatusMessage} />
+          <div className="file-menu-container" ref={viewMenuRef}>
+            <button
+              className="menu-btn"
+              onClick={() => {
+                setShowViewMenu(!showViewMenu);
+                setShowFileMenu(false);
+                setShowEditMenu(false);
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="16" rx="2"/>
+                <path d="M9 4v16"/>
+                <path d="M14 9h4"/>
+                <path d="M14 13h4"/>
+              </svg>
+              视图
+            </button>
+            {showViewMenu && (
+              <div className="file-menu compact-menu">
+                <button
+                  onClick={() => {
+                    setShowFileTree((visible) => !visible);
+                    setShowViewMenu(false);
+                  }}
+                  disabled={!folderPath}
+                >
+                  {showFileTree ? '隐藏文件树' : '显示文件树'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowSettings(true);
+                    setShowViewMenu(false);
+                  }}
+                >
+                  外观和文字样式
+                </button>
+              </div>
+            )}
+          </div>
           <button
             className="menu-btn"
             onClick={() => setShowSettings(true)}
@@ -756,9 +852,9 @@ function App() {
                     setShowFileMenu(false);
                     setTabContextMenu({ tabId: tab.id, x: event.clientX, y: event.clientY });
                   }}
-                >
+                  >
+                  {tab.hasLocalEdits && <span className="doc-tab-dirty" aria-label="未保存修改" />}
                   <span className="doc-tab-title">
-                    {tab.hasLocalEdits ? '* ' : ''}
                     {title}
                   </span>
                   <button
@@ -813,7 +909,12 @@ function App() {
         </main>
       </div>
       <footer className="status-bar">
-        <span className="status-message">{statusMessage}</span>
+        <span className="status-message">{statusMessage || '就绪'}</span>
+        <span className="status-meta">{markdownStats.lines} 行</span>
+        <span className="status-meta">{markdownStats.characters} 字符</span>
+        <span className={`status-save ${activeTab?.hasLocalEdits ? 'dirty' : ''}`}>
+          {activeTab?.hasLocalEdits ? '未保存' : '已同步'}
+        </span>
         {currentFile && <span className="file-path">{currentFile}</span>}
       </footer>
       <UpdateDialog />
@@ -826,6 +927,13 @@ function App() {
       {showHelp && <Help onClose={() => setShowHelp(false)} />}
     </div>
   );
+}
+
+function getMarkdownStats(value: string) {
+  return {
+    lines: value.length === 0 ? 1 : value.split(/\r\n|\r|\n/).length,
+    characters: value.length,
+  };
 }
 
 export default App;
