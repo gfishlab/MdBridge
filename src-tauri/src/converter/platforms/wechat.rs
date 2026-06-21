@@ -8,6 +8,9 @@ use syntect::parsing::SyntaxSet;
 
 pub struct WechatConverter;
 
+const PARAGRAPH_STYLE: &str =
+    "margin:14px 0;line-height:1.75;font-size:16px;text-align:left;letter-spacing:0;word-spacing:normal;";
+
 impl PlatformConverter for WechatConverter {
     fn name(&self) -> &str {
         "wechat"
@@ -52,7 +55,7 @@ fn render_block<'a>(node: &'a AstNode<'a>, html: &mut String) {
             html.push_str(&format!("</h{}>", heading.level));
         }
         NodeValue::Paragraph => {
-            html.push_str("<p style=\"margin:14px 0;line-height:1.75;font-size:16px;\">");
+            html.push_str(&format!("<p style=\"{}\">", PARAGRAPH_STYLE));
             render_inline_children(node, html);
             html.push_str("</p>");
         }
@@ -84,7 +87,7 @@ fn render_block<'a>(node: &'a AstNode<'a>, html: &mut String) {
         }
         // 微信公众号对表格支持差，转为纯文本段落
         NodeValue::Table(_) => {
-            html.push_str("<p style=\"margin:14px 0;line-height:1.75;font-size:16px;\">");
+            html.push_str(&format!("<p style=\"{}\">", PARAGRAPH_STYLE));
             collect_table_as_text(node, html);
             html.push_str("</p>");
         }
@@ -441,7 +444,8 @@ fn render_list<'a>(
 fn render_list_item<'a>(item: &'a AstNode<'a>, marker: &str, depth: usize, html: &mut String) {
     let margin_left = (depth as f32) * 1.6 + 1.6;
     let para_style = format!(
-        "margin:6px 0;line-height:1.75;font-size:16px;margin-left:{:.1}em;text-indent:-1.6em;",
+        "margin:6px 0;line-height:1.75;font-size:16px;text-align:left;letter-spacing:0;\
+         word-spacing:normal;margin-left:{:.1}em;text-indent:-1.6em;",
         margin_left
     );
 
@@ -472,17 +476,28 @@ fn render_list_item<'a>(item: &'a AstNode<'a>, marker: &str, depth: usize, html:
 
 /// 渲染节点的所有直接内联子节点
 fn render_inline_children<'a>(node: &'a AstNode<'a>, html: &mut String) {
-    for child in node.children() {
-        render_inline(child, html);
+    let children = node.children().collect::<Vec<_>>();
+    for (index, child) in children.iter().enumerate() {
+        render_inline(child, children.get(index + 1).copied(), html);
     }
 }
 
 /// 渲染单个内联节点
-fn render_inline<'a>(node: &'a AstNode<'a>, html: &mut String) {
+fn render_inline<'a>(
+    node: &'a AstNode<'a>,
+    next_sibling: Option<&'a AstNode<'a>>,
+    html: &mut String,
+) {
     let data = node.data.borrow();
     match &data.value {
         NodeValue::Text(text) => html.push_str(&html_escape(text)),
-        NodeValue::SoftBreak => html.push(' '),
+        NodeValue::SoftBreak => {
+            if next_sibling.is_some_and(is_link_node) {
+                html.push_str("<br/>");
+            } else {
+                html.push(' ');
+            }
+        }
         NodeValue::LineBreak => html.push_str("<br/>"),
         NodeValue::Strong => {
             html.push_str("<strong>");
@@ -500,7 +515,11 @@ fn render_inline<'a>(node: &'a AstNode<'a>, html: &mut String) {
             html.push_str("</del>");
         }
         NodeValue::Link(link) => {
-            html.push_str(&format!("<a href=\"{}\">", &link.url));
+            html.push_str(&format!(
+                "<a href=\"{}\" style=\"color:#576b95;text-decoration:none;\
+                 word-break:break-all;overflow-wrap:anywhere;\">",
+                &link.url
+            ));
             render_inline_children(node, html);
             html.push_str("</a>");
         }
@@ -519,6 +538,10 @@ fn render_inline<'a>(node: &'a AstNode<'a>, html: &mut String) {
         }
         _ => render_inline_children(node, html),
     }
+}
+
+fn is_link_node<'a>(node: &'a AstNode<'a>) -> bool {
+    matches!(node.data.borrow().value, NodeValue::Link(_))
 }
 
 fn collect_table_as_text<'a>(node: &'a AstNode<'a>, html: &mut String) {
@@ -558,6 +581,40 @@ mod tests {
         let doc = parse_markdown(&arena, "Hello world");
         let html = WechatConverter.convert(doc);
         assert!(html.contains("Hello world"));
+    }
+
+    #[test]
+    fn test_wechat_paragraph_disables_justify_spacing() {
+        let arena = Arena::new();
+        let doc = parse_markdown(&arena, "Loop Engineering 原文（Addy Osmani）：");
+        let html = WechatConverter.convert(doc);
+        assert!(
+            html.contains("text-align:left"),
+            "paragraphs should force left alignment to avoid WeChat editor justify spacing"
+        );
+        assert!(
+            html.contains("letter-spacing:0") && html.contains("word-spacing:normal"),
+            "paragraphs should reset spacing that can be inherited in WeChat"
+        );
+    }
+
+    #[test]
+    fn test_wechat_reference_link_after_softbreak_stays_on_next_line() {
+        let arena = Arena::new();
+        let doc = parse_markdown(
+            &arena,
+            "Loop Engineering 原文（Addy Osmani）：\nhttps://addyosmani.com/blog/loop-engineering/",
+        );
+        let html = WechatConverter.convert(doc);
+        assert!(
+            html.contains("Osmani）：<br/><a href=\"https://addyosmani.com/blog/loop-engineering/\""),
+            "reference URL should stay on the next line instead of being merged into the title line: {}",
+            html
+        );
+        assert!(
+            html.contains("word-break:break-all") && html.contains("overflow-wrap:anywhere"),
+            "long reference links should be allowed to wrap inside WeChat"
+        );
     }
 
     #[test]
