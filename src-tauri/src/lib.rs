@@ -72,8 +72,25 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|_app, _event| {
             #[cfg(target_os = "macos")]
-            if let tauri::RunEvent::Reopen { .. } = _event {
-                tray::restore_main_window(_app);
+            match _event {
+                tauri::RunEvent::Reopen { .. } => {
+                    tray::restore_main_window(_app);
+                }
+                // Fired when the user opens a file via Finder double-click or
+                // "Open With > MDBridge". Without this, the OS-provided paths
+                // were dropped and the app only showed the blank default doc.
+                tauri::RunEvent::Opened { urls } => {
+                    for url in urls {
+                        if let Ok(path) = url.to_file_path() {
+                            if let Err(err) =
+                                commands::open_path_in_new_window(_app.clone(), &path)
+                            {
+                                eprintln!("打开文件失败 {}: {}", path.display(), err);
+                            }
+                        }
+                    }
+                }
+                _ => {}
             }
         })
 }

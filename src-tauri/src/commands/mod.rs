@@ -152,14 +152,33 @@ pub async fn open_new_window(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn open_file_in_new_window(path: String, app: AppHandle) -> Result<(), String> {
-    let file_path = Path::new(&path);
+    open_file_window(app, Path::new(&path))
+}
+
+#[tauri::command]
+pub async fn open_folder_in_new_window(path: String, app: AppHandle) -> Result<(), String> {
+    open_folder_window(app, Path::new(&path))
+}
+
+/// Opens an OS "Open With" / double-click target. Markdown files load into a
+/// new document window, folders open as a workspace. Used by the macOS file
+/// association flow (see `RunEvent::Opened` in `lib.rs`).
+pub fn open_path_in_new_window(app: AppHandle, path: &Path) -> Result<(), String> {
+    if path.is_dir() {
+        open_folder_window(app, path)
+    } else {
+        open_file_window(app, path)
+    }
+}
+
+fn open_file_window(app: AppHandle, file_path: &Path) -> Result<(), String> {
     if !file_path.is_file() {
         return Err("只能在新窗口打开已存在的文件".into());
     }
     if !file_path
         .extension()
         .and_then(|ext| ext.to_str())
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("md") || ext.eq_ignore_ascii_case("markdown"))
     {
         return Err("只能在新窗口打开 .md 文件".into());
     }
@@ -178,9 +197,7 @@ pub async fn open_file_in_new_window(path: String, app: AppHandle) -> Result<(),
     )
 }
 
-#[tauri::command]
-pub async fn open_folder_in_new_window(path: String, app: AppHandle) -> Result<(), String> {
-    let folder_path = Path::new(&path);
+fn open_folder_window(app: AppHandle, folder_path: &Path) -> Result<(), String> {
     if !folder_path.is_dir() {
         return Err("只能在新窗口打开已存在的文件夹".into());
     }

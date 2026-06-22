@@ -1,6 +1,6 @@
 {
   "productName": "MDBridge",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "identifier": "com.gfishlab.mdbridge",
   "build": {
     "frontendDist": "../dist",
@@ -34,6 +34,14 @@
     "active": true,
     "targets": "all",
     "createUpdaterArtifacts": true,
+    "fileAssociations": [
+      {
+        "ext": ["md", "markdown"],
+        "name": "Markdown Document",
+        "description": "Markdown 文档",
+        "role": "Editor"
+      }
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
