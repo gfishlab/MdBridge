@@ -10,7 +10,7 @@
 
 ### 新增
 
-- 声明 `.md` / `.markdown` 文件关联，MDBridge 可作为系统默认 Markdown 编辑器，并在系统「打开方式」中正式列出。
+- 为 macOS 声明 `.md` / `.markdown` 文件关联，MDBridge 可作为系统默认 Markdown 编辑器，并在系统「打开方式」中正式列出。
 
 ## v1.0.2
 

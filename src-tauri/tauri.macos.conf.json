@@ -1,0 +1,12 @@
+{
+  "bundle": {
+    "fileAssociations": [
+      {
+        "ext": ["md", "markdown"],
+        "name": "Markdown Document",
+        "description": "Markdown 文档",
+        "role": "Editor"
+      }
+    ]
+  }
+}

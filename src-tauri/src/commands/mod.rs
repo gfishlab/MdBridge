@@ -163,6 +163,7 @@ pub async fn open_folder_in_new_window(path: String, app: AppHandle) -> Result<(
 /// Opens an OS "Open With" / double-click target. Markdown files load into a
 /// new document window, folders open as a workspace. Used by the macOS file
 /// association flow (see `RunEvent::Opened` in `lib.rs`).
+#[cfg(target_os = "macos")]
 pub fn open_path_in_new_window(app: AppHandle, path: &Path) -> Result<(), String> {
     if path.is_dir() {
         open_folder_window(app, path)
