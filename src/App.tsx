@@ -5,6 +5,7 @@ import { open, save } from '@tauri-apps/plugin-dialog';
 import { Editor } from './components/Editor';
 import { PlatformBar } from './components/PlatformBar';
 import { FileTree } from './components/FileTree';
+import { GitPanel, type GitStatus } from './components/GitPanel';
 import { UpdateDialog } from './components/UpdateDialog';
 import { Settings } from './components/Settings';
 import { Help } from './components/Help/Help';
@@ -90,6 +91,9 @@ function App() {
   const [showViewMenu, setShowViewMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [showGitPanel, setShowGitPanel] = useState(false);
+  const [gitStatus, setGitStatus] = useState<GitStatus | null>(null);
+  const [gitStatusLoading, setGitStatusLoading] = useState(false);
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const [recentFolders, setRecentFolders] = useState<string[]>([]);
   const [tabContextMenu, setTabContextMenu] = useState<TabContextMenuState | null>(null);
@@ -114,6 +118,7 @@ function App() {
   const currentFile = activeTab?.path ?? '';
   const markdownStats = getMarkdownStats(markdown);
   const themeAppearance = resolveThemeAppearance(themePreference, prefersDarkMode);
+  const gitWorkspacePath = folderPath || currentFile;
 
   useEffect(() => {
     tabsRef.current = tabs;
@@ -130,6 +135,32 @@ function App() {
   useEffect(() => {
     recentFoldersRef.current = recentFolders;
   }, [recentFolders]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!gitWorkspacePath) {
+      setGitStatus(null);
+      setGitStatusLoading(false);
+      return;
+    }
+
+    setGitStatusLoading(true);
+    invoke<GitStatus>('get_git_status', { path: gitWorkspacePath })
+      .then((status) => {
+        if (cancelled) return;
+        setGitStatus(isGitStatus(status) ? status : null);
+      })
+      .catch(() => {
+        if (!cancelled) setGitStatus(null);
+      })
+      .finally(() => {
+        if (!cancelled) setGitStatusLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [gitWorkspacePath]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -670,6 +701,25 @@ function App() {
     setShowSettings(false);
   };
 
+  const handleToggleGitPanel = () => {
+    if (!gitWorkspacePath) {
+      setStatusMessage('打开文件夹或保存文档后可使用版本历史');
+      return;
+    }
+    setShowGitPanel((visible) => !visible);
+  };
+
+  const handleRestoreGitVersion = (content: string) => {
+    const tabId = activeTabIdRef.current;
+    markdownRef.current = content;
+    hasLocalEditsRef.current = false;
+    tabsRef.current = tabsRef.current.map((tab) => (
+      tab.id === tabId ? { ...tab, content, hasLocalEdits: false } : tab
+    ));
+    updateTab(tabId, (tab) => ({ ...tab, content, hasLocalEdits: false }));
+    setStatusMessage('已恢复历史版本到工作区');
+  };
+
   return (
     <div
       className="app"
@@ -834,6 +884,18 @@ function App() {
             currentFile={currentFile}
           />
         )}
+        {showGitPanel && gitWorkspacePath && (
+          <GitPanel
+            workspacePath={gitWorkspacePath}
+            currentFile={currentFile}
+            hasLocalEdits={!!activeTab?.hasLocalEdits}
+            onBeforeGitAction={flushSave}
+            onClose={() => setShowGitPanel(false)}
+            onRepositoryStatusChange={setGitStatus}
+            onRestoreVersion={handleRestoreGitVersion}
+            onStatusChange={setStatusMessage}
+          />
+        )}
         <main className="content">
           <div className="tab-strip" role="tablist" aria-label="打开的文档">
             {tabs.map((tab) => {
@@ -910,6 +972,16 @@ function App() {
       </div>
       <footer className="status-bar">
         <span className="status-message">{statusMessage || '就绪'}</span>
+        <button
+          type="button"
+          className={`git-status-btn ${showGitPanel ? 'active' : ''}`}
+          onClick={handleToggleGitPanel}
+          title="打开版本历史"
+          aria-label={getGitStatusAriaLabel(gitStatus, gitStatusLoading)}
+        >
+          <BranchStatusIcon />
+          <span>{getGitStatusLabel(gitStatus, gitStatusLoading)}</span>
+        </button>
         <span className="status-meta">{markdownStats.lines} 行</span>
         <span className="status-meta">{markdownStats.characters} 字符</span>
         <span className={`status-save ${activeTab?.hasLocalEdits ? 'dirty' : ''}`}>
@@ -934,6 +1006,37 @@ function getMarkdownStats(value: string) {
     lines: value.length === 0 ? 1 : value.split(/\r\n|\r|\n/).length,
     characters: value.length,
   };
+}
+
+function isGitStatus(value: unknown): value is GitStatus {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as GitStatus;
+  return typeof candidate.branch === 'string'
+    && typeof candidate.changed_files === 'number'
+    && typeof candidate.repo_root === 'string';
+}
+
+function getGitStatusLabel(status: GitStatus | null, loading: boolean) {
+  if (loading) return '版本 读取中';
+  if (!status) return '版本';
+  return `版本 ${status.branch} · ${status.changed_files} 修改`;
+}
+
+function getGitStatusAriaLabel(status: GitStatus | null, loading: boolean) {
+  if (loading) return '版本 Git 状态读取中';
+  if (!status) return '版本';
+  return `版本 ${status.branch} ${status.changed_files} 个修改`;
+}
+
+function BranchStatusIcon() {
+  return (
+    <svg className="status-branch-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M6 3v12" />
+      <path d="M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+      <path d="M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+      <path d="M18 9c0 4-3 6-7 6H6" />
+    </svg>
+  );
 }
 
 export default App;

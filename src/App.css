@@ -229,6 +229,7 @@ html, body, #root {
 .tree-toolbar-btn:focus-visible,
 .doc-tab-close:focus-visible,
 .doc-tab-add:focus-visible,
+.git-status-btn:focus-visible,
 .file-menu button:focus-visible,
 .context-menu-item:focus-visible {
   outline: 2px solid var(--border-focus);
@@ -449,6 +450,43 @@ html, body, #root {
 .status-message {
   color: var(--text-secondary);
   min-width: 68px;
+}
+
+.git-status-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 180px;
+  min-height: 22px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0 8px;
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.git-status-btn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-status-btn:hover,
+.git-status-btn.active {
+  border-color: var(--border-focus);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.status-branch-icon {
+  flex-shrink: 0;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .status-meta,

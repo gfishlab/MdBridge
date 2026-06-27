@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -288,6 +288,52 @@ describe('App', () => {
     await waitFor(() => {
       expect(screen.getByTestId('editor')).toHaveValue(`${FILE_A} content`);
     });
+  });
+
+  it('opens the Git version panel for the active document', async () => {
+    const FILE = '/repo/docs/guide.md';
+    vi.mocked(open).mockResolvedValue(FILE);
+
+    vi.mocked(invoke).mockImplementation(((command: string) => {
+      if (command === 'read_file') return Promise.resolve('# Guide');
+      if (command === 'get_git_status') {
+        return Promise.resolve({
+          repo_root: '/repo/docs',
+          branch: 'main',
+          changed_files: 1,
+          ahead: 0,
+          behind: 0,
+          has_remote: true,
+        });
+      }
+      if (command === 'get_git_branches') return Promise.resolve([{ name: 'main', current: true }]);
+      if (command === 'get_git_file_history') {
+        return Promise.resolve([
+          {
+            hash: '0123456789abcdef',
+            short_hash: '0123456',
+            author_name: 'Grace Hopper',
+            author_email: 'grace@example.com',
+            authored_at: '2026-06-27T09:12:30+08:00',
+            summary: 'docs: update guide',
+          },
+        ]);
+      }
+      if (command === 'get_git_file_diff') return Promise.resolve('+new line');
+      return defaultInvoke(command);
+    }) as never);
+
+    render(<App />);
+
+    await openSelectedMarkdownFile();
+    await screen.findByText(FILE);
+
+    fireEvent.click(await screen.findByRole('button', { name: /版本/ }));
+
+    expect(await screen.findByLabelText('版本历史')).toBeInTheDocument();
+    const historySection = screen.getByLabelText('当前文档历史');
+    expect(within(historySection).getByText('docs: update guide')).toBeInTheDocument();
+    expect(within(historySection).getByText('Grace Hopper')).toBeInTheDocument();
   });
 
   it('adds opened markdown files to the recent file menu', async () => {

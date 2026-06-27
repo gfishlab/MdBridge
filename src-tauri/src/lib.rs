@@ -2,6 +2,7 @@ mod clipboard;
 mod commands;
 mod config;
 mod converter;
+mod git_integration;
 mod image_cache;
 mod tray;
 mod updater;
@@ -32,6 +33,14 @@ pub fn run() {
             commands::get_platforms,
             commands::convert_and_copy,
             commands::read_file,
+            commands::get_git_status,
+            commands::get_git_branches,
+            commands::get_git_file_history,
+            commands::get_git_file_diff,
+            commands::restore_git_file_revision,
+            commands::commit_git_file,
+            commands::pull_git_repository,
+            commands::push_git_repository,
             commands::open_new_window,
             commands::open_file_in_new_window,
             commands::open_folder_in_new_window,
@@ -82,8 +91,7 @@ pub fn run() {
                 tauri::RunEvent::Opened { urls } => {
                     for url in urls {
                         if let Ok(path) = url.to_file_path() {
-                            if let Err(err) =
-                                commands::open_path_in_new_window(_app.clone(), &path)
+                            if let Err(err) = commands::open_path_in_new_window(_app.clone(), &path)
                             {
                                 eprintln!("打开文件失败 {}: {}", path.display(), err);
                             }

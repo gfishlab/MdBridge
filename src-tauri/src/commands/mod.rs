@@ -2,6 +2,7 @@ use crate::clipboard;
 use crate::config::{is_supported_text_style, is_supported_theme, AppConfig};
 use crate::converter::ast::{extract_image_urls, parse_markdown};
 use crate::converter::platforms;
+use crate::git_integration;
 use crate::image_cache::ImageCache;
 use crate::tray;
 use crate::updater;
@@ -143,6 +144,52 @@ pub async fn convert_and_copy(
 #[tauri::command]
 pub fn read_file(path: String) -> Result<String, String> {
     fs::read_to_string(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_git_status(path: String) -> Result<git_integration::GitStatus, String> {
+    git_integration::get_status(&path)
+}
+
+#[tauri::command]
+pub fn get_git_branches(path: String) -> Result<Vec<git_integration::GitBranch>, String> {
+    git_integration::get_branches(&path)
+}
+
+#[tauri::command]
+pub fn get_git_file_history(
+    path: String,
+    limit: Option<usize>,
+) -> Result<Vec<git_integration::GitCommit>, String> {
+    git_integration::get_file_history(&path, limit)
+}
+
+#[tauri::command]
+pub fn get_git_file_diff(path: String, commit: String) -> Result<String, String> {
+    git_integration::get_file_diff(&path, &commit)
+}
+
+#[tauri::command]
+pub fn restore_git_file_revision(path: String, commit: String) -> Result<String, String> {
+    git_integration::restore_file_revision(&path, &commit)
+}
+
+#[tauri::command]
+pub fn commit_git_file(
+    path: String,
+    message: String,
+) -> Result<git_integration::GitOperationResult, String> {
+    git_integration::commit_file(&path, &message)
+}
+
+#[tauri::command]
+pub fn pull_git_repository(path: String) -> Result<git_integration::GitOperationResult, String> {
+    git_integration::pull_repository(&path)
+}
+
+#[tauri::command]
+pub fn push_git_repository(path: String) -> Result<git_integration::GitOperationResult, String> {
+    git_integration::push_repository(&path)
 }
 
 #[tauri::command]
