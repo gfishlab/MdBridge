@@ -165,6 +165,14 @@ pub fn get_git_file_history(
 }
 
 #[tauri::command]
+pub fn get_git_commit_graph(
+    path: String,
+    limit: Option<usize>,
+) -> Result<Vec<git_integration::GitCommitGraphEntry>, String> {
+    git_integration::get_commit_graph(&path, limit)
+}
+
+#[tauri::command]
 pub fn get_git_file_diff(path: String, commit: String) -> Result<String, String> {
     git_integration::get_file_diff(&path, &commit)
 }
@@ -190,6 +198,20 @@ pub fn pull_git_repository(path: String) -> Result<git_integration::GitOperation
 #[tauri::command]
 pub fn push_git_repository(path: String) -> Result<git_integration::GitOperationResult, String> {
     git_integration::push_repository(&path)
+}
+
+#[tauri::command]
+pub fn get_git_conflicts(path: String) -> Result<Vec<git_integration::GitConflictFile>, String> {
+    git_integration::get_conflicts(&path)
+}
+
+#[tauri::command]
+pub fn resolve_git_conflict(
+    path: String,
+    file_path: String,
+    resolution: String,
+) -> Result<git_integration::GitOperationResult, String> {
+    git_integration::resolve_conflict(&path, &file_path, &resolution)
 }
 
 #[tauri::command]

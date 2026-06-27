@@ -14,6 +14,7 @@ export interface GitStatus {
 interface GitBranch {
   name: string;
   current: boolean;
+  kind: 'local' | 'remote' | 'recent' | string;
 }
 
 interface GitCommit {
@@ -27,6 +28,20 @@ interface GitCommit {
 
 interface GitOperationResult {
   message: string;
+}
+
+interface GitCommitGraphEntry {
+  graph: string;
+  short_hash: string;
+  refs: string;
+  summary: string;
+}
+
+interface GitConflictFile {
+  path: string;
+  base: string;
+  ours: string;
+  theirs: string;
 }
 
 interface GitPanelProps {
@@ -53,9 +68,13 @@ export function GitPanel({
   const [status, setStatus] = useState<GitStatus | null>(null);
   const [branches, setBranches] = useState<GitBranch[]>([]);
   const [history, setHistory] = useState<GitCommit[]>([]);
+  const [commitGraph, setCommitGraph] = useState<GitCommitGraphEntry[]>([]);
+  const [conflicts, setConflicts] = useState<GitConflictFile[]>([]);
+  const [selectedConflictPath, setSelectedConflictPath] = useState('');
   const [selectedHash, setSelectedHash] = useState('');
   const [diff, setDiff] = useState('');
   const [commitMessage, setCommitMessage] = useState('');
+  const [operationMessage, setOperationMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [diffLoading, setDiffLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState('');
@@ -71,6 +90,7 @@ export function GitPanel({
       setStatus(null);
       setBranches([]);
       setHistory([]);
+      setCommitGraph([]);
       setSelectedHash('');
       onRepositoryStatusChange(null);
       return;
@@ -79,27 +99,30 @@ export function GitPanel({
     setLoading(true);
     setError('');
     try {
-      const [nextStatus, nextBranches, nextHistory] = await Promise.all([
+      const [nextStatus, nextBranches, nextGraph, nextHistory] = await Promise.all([
         invoke<GitStatus>('get_git_status', { path: workspacePath }),
         invoke<GitBranch[]>('get_git_branches', { path: workspacePath }),
+        invoke<GitCommitGraphEntry[]>('get_git_commit_graph', { path: workspacePath, limit: 80 }),
         currentFile
           ? invoke<GitCommit[]>('get_git_file_history', { path: currentFile, limit: 80 })
           : Promise.resolve([]),
       ]);
 
       setStatus(nextStatus);
-      setBranches(nextBranches);
-      setHistory(nextHistory);
+      setBranches(Array.isArray(nextBranches) ? nextBranches : []);
+      setCommitGraph(Array.isArray(nextGraph) ? nextGraph : []);
+      setHistory(Array.isArray(nextHistory) ? nextHistory : []);
       setSelectedHash((current) => (
-        nextHistory.some((commit) => commit.hash === current)
+        Array.isArray(nextHistory) && nextHistory.some((commit) => commit.hash === current)
           ? current
-          : nextHistory[0]?.hash ?? ''
+          : Array.isArray(nextHistory) ? nextHistory[0]?.hash ?? '' : ''
       ));
       onRepositoryStatusChange(nextStatus);
     } catch (err) {
       setStatus(null);
       setBranches([]);
       setHistory([]);
+      setCommitGraph([]);
       setSelectedHash('');
       setError(`无法读取 Git 信息: ${err}`);
       onRepositoryStatusChange(null);
@@ -142,12 +165,23 @@ export function GitPanel({
   ) => {
     setActionLoading(label);
     setError('');
+    setOperationMessage('');
     try {
       await onBeforeGitAction();
       await action();
       await loadRepository();
     } catch (err) {
       setError(`${label}失败: ${err}`);
+      if (label === '拉取') {
+        try {
+          const nextConflicts = await invoke<GitConflictFile[]>('get_git_conflicts', { path: workspacePath });
+          setConflicts(nextConflicts);
+          setSelectedConflictPath(nextConflicts[0]?.path ?? '');
+        } catch {
+          setConflicts([]);
+          setSelectedConflictPath('');
+        }
+      }
     } finally {
       setActionLoading('');
     }
@@ -172,11 +206,12 @@ export function GitPanel({
     if (!currentFile || !commitMessage.trim()) return;
 
     runAction('提交', async () => {
-      await invoke<GitOperationResult>('commit_git_file', {
+      const result = await invoke<GitOperationResult>('commit_git_file', {
         path: currentFile,
         message: commitMessage.trim(),
       });
       setCommitMessage('');
+      setOperationMessage(result.message || '已提交当前文档');
       onStatusChange('已提交当前文档');
     });
   };
@@ -184,7 +219,10 @@ export function GitPanel({
   const handlePull = () => {
     if (!workspacePath) return;
     runAction('拉取', async () => {
-      await invoke<GitOperationResult>('pull_git_repository', { path: workspacePath });
+      const result = await invoke<GitOperationResult>('pull_git_repository', { path: workspacePath });
+      setConflicts([]);
+      setSelectedConflictPath('');
+      setOperationMessage(result.message || '已拉取远程更新');
       onStatusChange('已拉取远程更新');
     });
   };
@@ -192,10 +230,35 @@ export function GitPanel({
   const handlePush = () => {
     if (!workspacePath) return;
     runAction('推送', async () => {
-      await invoke<GitOperationResult>('push_git_repository', { path: workspacePath });
+      const result = await invoke<GitOperationResult>('push_git_repository', { path: workspacePath });
+      setOperationMessage(result.message || '已推送到远程仓库');
       onStatusChange('已推送到远程仓库');
     });
   };
+
+  const handleResolveConflict = (resolution: 'ours' | 'theirs') => {
+    const selectedConflict = conflicts.find((conflict) => conflict.path === selectedConflictPath);
+    if (!selectedConflict) return;
+
+    runAction(resolution === 'ours' ? '采用当前修改' : '采用传入修改', async () => {
+      const result = await invoke<GitOperationResult>('resolve_git_conflict', {
+        path: workspacePath,
+        filePath: selectedConflict.path,
+        resolution,
+      });
+      setOperationMessage(result.message);
+      const nextConflicts = await invoke<GitConflictFile[]>('get_git_conflicts', { path: workspacePath });
+      setConflicts(nextConflicts);
+      setSelectedConflictPath(nextConflicts[0]?.path ?? '');
+    });
+  };
+
+  const commitDisabledReason = !currentFile
+    ? '当前文档未保存，无法提交到 Git。'
+    : !commitMessage.trim()
+      ? '填写提交信息后可提交当前文档。'
+      : '';
+  const selectedConflict = conflicts.find((conflict) => conflict.path === selectedConflictPath) ?? conflicts[0] ?? null;
 
   return (
     <aside className="git-panel" aria-label="版本历史">
@@ -214,6 +277,7 @@ export function GitPanel({
 
       {loading && <div className="git-panel-state">正在读取 Git 信息...</div>}
       {error && <div className="git-panel-error">{error}</div>}
+      {operationMessage && <div className="git-panel-result">{operationMessage}</div>}
 
       {status && (
         <section className="git-section git-repo-summary" aria-label="仓库状态">
@@ -232,10 +296,10 @@ export function GitPanel({
           )}
           <div className="git-sync-actions">
             <button type="button" onClick={handlePull} disabled={!!actionLoading}>
-              拉取
+              {actionLoading === '拉取' ? '拉取中...' : '拉取'}
             </button>
             <button type="button" onClick={handlePush} disabled={!!actionLoading}>
-              推送
+              {actionLoading === '推送' ? '推送中...' : '推送'}
             </button>
           </div>
         </section>
@@ -249,6 +313,7 @@ export function GitPanel({
             onChange={(event) => setCommitMessage(event.target.value)}
             placeholder="例如: docs: update publish guide"
             disabled={!currentFile || !!actionLoading}
+            aria-describedby="git-commit-hint"
           />
         </label>
         <button
@@ -257,22 +322,83 @@ export function GitPanel({
           onClick={handleCommit}
           disabled={!currentFile || !commitMessage.trim() || !!actionLoading}
         >
-          提交当前文档
+          {actionLoading === '提交' ? '提交中...' : '提交当前文档'}
         </button>
+        {commitDisabledReason && <p id="git-commit-hint" className="git-hint">{commitDisabledReason}</p>}
         {hasLocalEdits && <p className="git-hint">提交前会先保存当前编辑内容。</p>}
       </section>
 
       <section className="git-section" aria-label="分支列表">
         <div className="git-section-heading">分支</div>
-        <div className="git-branch-list">
-          {branches.length === 0 && <span className="git-empty">没有可显示的分支</span>}
-          {branches.map((branch) => (
-            <span key={branch.name} className={`git-branch ${branch.current ? 'current' : ''}`}>
-              {branch.name}
-            </span>
+        <BranchGroup title="本地分支" branches={branches.filter((branch) => branch.kind === 'local')} />
+        <BranchGroup title="远程分支" branches={branches.filter((branch) => branch.kind === 'remote')} />
+        <BranchGroup title="最近分支" branches={branches.filter((branch) => branch.kind === 'recent')} />
+      </section>
+
+      <section className="git-section git-graph-section" aria-label="提交路线">
+        <div className="git-section-heading">提交路线</div>
+        {commitGraph.length === 0 && <span className="git-empty">没有可显示的提交路线。</span>}
+        <div className="git-graph-list">
+          {commitGraph.map((entry) => (
+            <div key={`${entry.short_hash}-${entry.summary}`} className="git-graph-row">
+              <code className="git-graph-ascii">{entry.graph || '*'}</code>
+              <code>{entry.short_hash}</code>
+              {entry.refs && <span className="git-graph-refs">{entry.refs}</span>}
+              <span>{entry.summary || '(无提交说明)'}</span>
+            </div>
           ))}
         </div>
       </section>
+
+      {conflicts.length > 0 && selectedConflict && (
+        <section className="git-section git-conflict-section" aria-label="冲突解决">
+          <div className="git-section-heading">冲突文件</div>
+          <div className="git-conflict-tabs">
+            {conflicts.map((conflict) => (
+              <button
+                key={conflict.path}
+                type="button"
+                className={conflict.path === selectedConflict.path ? 'active' : ''}
+                onClick={() => setSelectedConflictPath(conflict.path)}
+              >
+                {conflict.path}
+              </button>
+            ))}
+          </div>
+          <div className="git-conflict-compare">
+            <div>
+              <div className="git-conflict-title">当前修改</div>
+              <pre>{selectedConflict.ours || '(空)'}</pre>
+              <button
+                type="button"
+                className="git-secondary-btn"
+                onClick={() => handleResolveConflict('ours')}
+                disabled={!!actionLoading}
+              >
+                采用当前修改
+              </button>
+            </div>
+            <div>
+              <div className="git-conflict-title">传入修改</div>
+              <pre>{selectedConflict.theirs || '(空)'}</pre>
+              <button
+                type="button"
+                className="git-secondary-btn"
+                onClick={() => handleResolveConflict('theirs')}
+                disabled={!!actionLoading}
+              >
+                采用传入修改
+              </button>
+            </div>
+          </div>
+          {selectedConflict.base && (
+            <details className="git-conflict-base">
+              <summary>共同祖先</summary>
+              <pre>{selectedConflict.base}</pre>
+            </details>
+          )}
+        </section>
+      )}
 
       <section className="git-section git-history-section" aria-label="当前文档历史">
         <div className="git-section-heading">当前文档历史</div>
@@ -323,6 +449,22 @@ export function GitPanel({
         </section>
       )}
     </aside>
+  );
+}
+
+function BranchGroup({ title, branches }: { title: string; branches: GitBranch[] }) {
+  return (
+    <div className="git-branch-group">
+      <div className="git-branch-group-title">{title}</div>
+      <div className="git-branch-list">
+        {branches.length === 0 && <span className="git-empty">没有可显示的{title}</span>}
+        {branches.map((branch) => (
+          <span key={`${branch.kind}-${branch.name}`} className={`git-branch ${branch.current ? 'current' : ''}`}>
+            {branch.name}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 

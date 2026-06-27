@@ -336,6 +336,34 @@ describe('App', () => {
     expect(within(historySection).getByText('Grace Hopper')).toBeInTheDocument();
   });
 
+  it('places the Git version entry at the far left of the status bar', async () => {
+    const FILE = '/repo/docs/guide.md';
+    vi.mocked(open).mockResolvedValue(FILE);
+
+    vi.mocked(invoke).mockImplementation(((command: string) => {
+      if (command === 'read_file') return Promise.resolve('# Guide');
+      if (command === 'get_git_status') {
+        return Promise.resolve({
+          repo_root: '/repo/docs',
+          branch: 'main',
+          changed_files: 1,
+          ahead: 0,
+          behind: 0,
+          has_remote: true,
+        });
+      }
+      return defaultInvoke(command);
+    }) as never);
+
+    const { container } = render(<App />);
+
+    await openSelectedMarkdownFile();
+    await screen.findByText(FILE);
+
+    const statusBar = container.querySelector('.status-bar');
+    expect(statusBar?.firstElementChild).toHaveClass('git-status-btn');
+  });
+
   it('adds opened markdown files to the recent file menu', async () => {
     const FILE = '/test/recent-file.md';
     vi.mocked(open).mockResolvedValue(FILE);

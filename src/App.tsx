@@ -971,17 +971,17 @@ function App() {
         </main>
       </div>
       <footer className="status-bar">
-        <span className="status-message">{statusMessage || '就绪'}</span>
         <button
           type="button"
           className={`git-status-btn ${showGitPanel ? 'active' : ''}`}
           onClick={handleToggleGitPanel}
-          title="打开版本历史"
+          title="打开 Git 版本历史"
           aria-label={getGitStatusAriaLabel(gitStatus, gitStatusLoading)}
         >
           <BranchStatusIcon />
           <span>{getGitStatusLabel(gitStatus, gitStatusLoading)}</span>
         </button>
+        <span className="status-message">{statusMessage || '就绪'}</span>
         <span className="status-meta">{markdownStats.lines} 行</span>
         <span className="status-meta">{markdownStats.characters} 字符</span>
         <span className={`status-save ${activeTab?.hasLocalEdits ? 'dirty' : ''}`}>
@@ -1031,10 +1031,11 @@ function getGitStatusAriaLabel(status: GitStatus | null, loading: boolean) {
 function BranchStatusIcon() {
   return (
     <svg className="status-branch-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M6 3v12" />
-      <path d="M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
-      <path d="M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
-      <path d="M18 9c0 4-3 6-7 6H6" />
+      <path d="M12 2.75 21.25 12 12 21.25 2.75 12 12 2.75Z" />
+      <path d="M8 8v6" />
+      <path d="M16 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />
+      <path d="M8 18a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />
+      <path d="M16 10c0 2.7-1.7 4-5 4H8" />
     </svg>
   );
 }
