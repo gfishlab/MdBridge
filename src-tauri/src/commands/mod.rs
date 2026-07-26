@@ -157,6 +157,44 @@ pub fn get_git_branches(path: String) -> Result<Vec<git_integration::GitBranch>,
 }
 
 #[tauri::command]
+pub fn get_git_changed_files(path: String) -> Result<Vec<git_integration::GitChangedFile>, String> {
+    git_integration::get_changed_files(&path)
+}
+
+#[tauri::command]
+pub fn get_git_remotes(path: String) -> Result<Vec<git_integration::GitRemote>, String> {
+    git_integration::get_remotes(&path)
+}
+
+#[tauri::command]
+pub fn add_git_remote(
+    path: String,
+    name: String,
+    domain: String,
+    branch_name: String,
+    url: String,
+) -> Result<git_integration::GitOperationResult, String> {
+    git_integration::add_remote(&path, &name, &domain, &branch_name, &url)
+}
+
+#[tauri::command]
+pub fn remove_git_remote(
+    path: String,
+    name: String,
+) -> Result<git_integration::GitOperationResult, String> {
+    git_integration::remove_remote(&path, &name)
+}
+
+#[tauri::command]
+pub fn checkout_git_branch(
+    path: String,
+    branch: String,
+    kind: String,
+) -> Result<git_integration::GitOperationResult, String> {
+    git_integration::checkout_branch(&path, &branch, &kind)
+}
+
+#[tauri::command]
 pub fn get_git_file_history(
     path: String,
     limit: Option<usize>,
@@ -178,6 +216,11 @@ pub fn get_git_file_diff(path: String, commit: String) -> Result<String, String>
 }
 
 #[tauri::command]
+pub fn get_git_worktree_file_diff(path: String, file_path: String) -> Result<String, String> {
+    git_integration::get_worktree_file_diff(&path, &file_path)
+}
+
+#[tauri::command]
 pub fn restore_git_file_revision(path: String, commit: String) -> Result<String, String> {
     git_integration::restore_file_revision(&path, &commit)
 }
@@ -191,6 +234,20 @@ pub fn commit_git_file(
 }
 
 #[tauri::command]
+pub fn commit_git_files(
+    path: String,
+    file_paths: Vec<String>,
+    message: String,
+) -> Result<git_integration::GitOperationResult, String> {
+    git_integration::commit_files(&path, &file_paths, &message)
+}
+
+#[tauri::command]
+pub fn fetch_git_repository(path: String) -> Result<git_integration::GitOperationResult, String> {
+    git_integration::fetch_repository(&path)
+}
+
+#[tauri::command]
 pub fn pull_git_repository(path: String) -> Result<git_integration::GitOperationResult, String> {
     git_integration::pull_repository(&path)
 }
@@ -198,6 +255,14 @@ pub fn pull_git_repository(path: String) -> Result<git_integration::GitOperation
 #[tauri::command]
 pub fn push_git_repository(path: String) -> Result<git_integration::GitOperationResult, String> {
     git_integration::push_repository(&path)
+}
+
+#[tauri::command]
+pub fn rollback_git_changed_file(
+    path: String,
+    file_path: String,
+) -> Result<git_integration::GitOperationResult, String> {
+    git_integration::rollback_changed_file(&path, &file_path)
 }
 
 #[tauri::command]

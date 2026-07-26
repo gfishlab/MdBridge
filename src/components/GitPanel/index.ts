@@ -1,1 +1,1 @@
-export { GitPanel, type GitStatus } from './GitPanel';
+export { GitPanel, type GitChangedFile, type GitStatus } from './GitPanel';

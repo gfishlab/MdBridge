@@ -68,8 +68,166 @@ describe('App', () => {
     render(<App />);
     expect(screen.getByRole('button', { name: /文件/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /发布/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Git' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /设置/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /帮助/ })).toBeInTheDocument();
+  });
+
+  it('places the Git menu directly after publish and runs repository actions from its dropdown', async () => {
+    vi.mocked(invoke).mockImplementation(((command: string) => {
+      if (command === 'get_git_status') {
+        return Promise.resolve({
+          repo_root: '/repo/docs',
+          branch: 'main',
+          changed_files: 0,
+          ahead: 0,
+          behind: 0,
+          has_remote: true,
+        });
+      }
+      if (command === 'fetch_git_repository') return Promise.resolve({ message: 'Fetched origin' });
+      if (command === 'pull_git_repository') return Promise.resolve({ message: 'Already up to date.' });
+      if (command === 'push_git_repository') return Promise.resolve({ message: 'Everything up-to-date' });
+      return defaultInvoke(command);
+    }) as never);
+
+    render(<App />);
+
+    const toolbar = document.querySelector('.toolbar-left') as HTMLElement;
+    const labels = within(toolbar).getAllByRole('button').map((button) => button.textContent?.trim());
+    expect(labels.indexOf('Git')).toBe(labels.indexOf('发布') + 1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Git' }));
+
+    expect(await screen.findByRole('button', { name: 'Fetch 更新' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pull 拉取' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Push 推送' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '管理远程分支' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fetch 更新' }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Fetched origin');
+    expect(invoke).toHaveBeenCalledWith('fetch_git_repository', { path: '/repo/docs' });
+  });
+
+  it('shows the branch selector near the app title area and checks out branches from the dropdown', async () => {
+    const FOLDER = '/repo/docs';
+    window.history.pushState({}, '', `/?folder=${encodeURIComponent(FOLDER)}`);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    vi.mocked(invoke).mockImplementation(((command: string) => {
+      if (command === 'read_folder') return Promise.resolve([]);
+      if (command === 'get_git_status') {
+        return Promise.resolve({
+          repo_root: FOLDER,
+          branch: 'main',
+          changed_files: 2,
+          ahead: 0,
+          behind: 0,
+          has_remote: true,
+        });
+      }
+      if (command === 'get_git_branches') {
+        return Promise.resolve([
+          { name: 'draft', current: false, kind: 'local' },
+          { name: 'main', current: true, kind: 'local' },
+          { name: 'origin/main', current: false, kind: 'remote' },
+          { name: 'release/v2', current: false, kind: 'recent' },
+        ]);
+      }
+      if (command === 'checkout_git_branch') return Promise.resolve({ message: '已切换到 draft' });
+      return defaultInvoke(command);
+    }) as never);
+
+    const { container } = render(<App />);
+
+    await screen.findByRole('button', { name: '当前分支 main，打开分支列表' });
+    const toolbar = container.querySelector('.toolbar-left');
+    expect(toolbar?.firstElementChild).toHaveClass('branch-menu-container');
+
+    fireEvent.click(screen.getByRole('button', { name: '当前分支 main，打开分支列表' }));
+    const menu = await screen.findByRole('menu', { name: '分支列表' });
+    expect(within(menu).getByText('本地分支')).toBeInTheDocument();
+    expect(within(menu).getByText('远程分支')).toBeInTheDocument();
+    expect(within(menu).getByText('最近使用')).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitem', { name: 'main 当前分支' })).toBeDisabled();
+
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'draft 本地分支' }));
+
+    await waitFor(() => {
+      expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('draft'));
+      expect(invoke).toHaveBeenCalledWith('checkout_git_branch', {
+        path: FOLDER,
+        branch: 'draft',
+        kind: 'local',
+      });
+    });
+    expect(await screen.findByRole('status')).toHaveTextContent('已切换到 draft');
+  });
+
+  it('opens remote management dialog and supports adding and removing remotes', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    vi.mocked(invoke).mockImplementation(((command: string) => {
+      if (command === 'get_git_status') {
+        return Promise.resolve({
+          repo_root: '/repo/docs',
+          branch: 'master',
+          changed_files: 0,
+          ahead: 0,
+          behind: 0,
+          has_remote: true,
+        });
+      }
+      if (command === 'get_git_remotes') {
+        return Promise.resolve([
+          { name: 'origin', url: 'git@github.com:gfishlab/MdBridge.git' },
+        ]);
+      }
+      if (command === 'add_git_remote') return Promise.resolve({ message: '已添加 remote upstream' });
+      if (command === 'remove_git_remote') return Promise.resolve({ message: '已删除 remote origin' });
+      return defaultInvoke(command);
+    }) as never);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Git' }));
+    fireEvent.click(await screen.findByRole('button', { name: '管理远程分支' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Management Remote' });
+    expect(within(dialog).getByText('origin')).toBeInTheDocument();
+    expect(within(dialog).getByText('git@github.com:gfishlab/MdBridge.git')).toBeInTheDocument();
+    expect(invoke).toHaveBeenCalledWith('get_git_remotes', { path: '/repo/docs' });
+
+    fireEvent.click(within(dialog).getByRole('button', { name: '新增 remote' }));
+    const form = within(dialog).getByLabelText('新增 Remote 表单');
+    fireEvent.change(within(form).getByLabelText('Name 名称'), { target: { value: 'upstream' } });
+    fireEvent.change(within(form).getByLabelText('Domain 域名'), { target: { value: 'github.com' } });
+    fireEvent.change(within(form).getByLabelText('Branch 分支名'), { target: { value: 'main' } });
+    fireEvent.change(within(form).getByLabelText('URL 地址'), {
+      target: { value: 'https://github.com/example/MdBridge.git' },
+    });
+    fireEvent.click(within(form).getByRole('button', { name: '添加 Remote' }));
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith('add_git_remote', {
+        path: '/repo/docs',
+        name: 'upstream',
+        domain: 'github.com',
+        branchName: 'main',
+        url: 'https://github.com/example/MdBridge.git',
+      });
+    });
+
+    fireEvent.click(within(dialog).getByRole('row', { name: '选择 remote origin' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: '删除 remote' }));
+
+    await waitFor(() => {
+      expect(window.confirm).toHaveBeenCalledWith('删除 remote origin？');
+      expect(invoke).toHaveBeenCalledWith('remove_git_remote', {
+        path: '/repo/docs',
+        name: 'origin',
+      });
+    });
   });
 
   it('applies configured theme and text style on startup', async () => {
@@ -290,7 +448,7 @@ describe('App', () => {
     });
   });
 
-  it('opens the Git version panel for the active document', async () => {
+  it('opens the version center for the active document', async () => {
     const FILE = '/repo/docs/guide.md';
     vi.mocked(open).mockResolvedValue(FILE);
 
@@ -306,7 +464,10 @@ describe('App', () => {
           has_remote: true,
         });
       }
-      if (command === 'get_git_branches') return Promise.resolve([{ name: 'main', current: true }]);
+      if (command === 'get_git_changed_files') {
+        return Promise.resolve([{ path: 'guide.md', status: 'M', staged: false }]);
+      }
+      if (command === 'get_git_branches') return Promise.resolve([{ name: 'main', current: true, kind: 'local' }]);
       if (command === 'get_git_file_history') {
         return Promise.resolve([
           {
@@ -320,6 +481,7 @@ describe('App', () => {
         ]);
       }
       if (command === 'get_git_file_diff') return Promise.resolve('+new line');
+      if (command === 'get_git_worktree_file_diff') return Promise.resolve('+draft change');
       return defaultInvoke(command);
     }) as never);
 
@@ -330,13 +492,126 @@ describe('App', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /版本/ }));
 
-    expect(await screen.findByLabelText('版本历史')).toBeInTheDocument();
-    const historySection = screen.getByLabelText('当前文档历史');
+    expect(await screen.findByLabelText('版本中心')).toBeInTheDocument();
+    const historySection = screen.getByLabelText('版本记录');
     expect(within(historySection).getByText('docs: update guide')).toBeInTheDocument();
     expect(within(historySection).getByText('Grace Hopper')).toBeInTheDocument();
   });
 
-  it('places the Git version entry at the far left of the status bar', async () => {
+  it('replaces the file tree with the version center in the left workspace slot', async () => {
+    const FOLDER = '/repo/docs';
+    window.history.pushState({}, '', `/?folder=${encodeURIComponent(FOLDER)}`);
+
+    vi.mocked(invoke).mockImplementation(((command: string) => {
+      if (command === 'read_folder') {
+        return Promise.resolve([
+          {
+            name: 'guide.md',
+            path: `${FOLDER}/guide.md`,
+            is_dir: false,
+          },
+        ]);
+      }
+      if (command === 'get_git_status') {
+        return Promise.resolve({
+          repo_root: FOLDER,
+          branch: 'main',
+          changed_files: 1,
+          ahead: 0,
+          behind: 0,
+          has_remote: true,
+        });
+      }
+      if (command === 'get_git_changed_files') {
+        return Promise.resolve([{ path: 'guide.md', status: 'M', staged: false }]);
+      }
+      if (command === 'get_git_branches') return Promise.resolve([{ name: 'main', current: true, kind: 'local' }]);
+      if (command === 'get_git_commit_graph') return Promise.resolve([]);
+      if (command === 'get_git_worktree_file_diff') return Promise.resolve('+draft change');
+      return defaultInvoke(command);
+    }) as never);
+
+    const { container } = render(<App />);
+
+    await waitFor(() => {
+      expect(container.querySelector('.file-tree-wrapper')).toBeInTheDocument();
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: /版本/ }));
+
+    expect(await screen.findByLabelText('版本中心')).toBeInTheDocument();
+    expect(screen.getAllByText('guide.md').length).toBeGreaterThan(0);
+    expect(container.querySelector('.file-tree-wrapper')).not.toBeInTheDocument();
+  });
+
+  it('shows selected changed file diff in the main content area with rollback support', async () => {
+    const FOLDER = '/repo/docs';
+    window.history.pushState({}, '', `/?folder=${encodeURIComponent(FOLDER)}`);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    vi.mocked(invoke).mockImplementation(((command: string) => {
+      if (command === 'read_folder') {
+        return Promise.resolve([
+          {
+            name: 'guide.md',
+            path: `${FOLDER}/guide.md`,
+            is_dir: false,
+          },
+        ]);
+      }
+      if (command === 'get_git_status') {
+        return Promise.resolve({
+          repo_root: FOLDER,
+          branch: 'main',
+          changed_files: 1,
+          ahead: 0,
+          behind: 0,
+          has_remote: true,
+        });
+      }
+      if (command === 'get_git_changed_files') {
+        return Promise.resolve([{ path: 'guide.md', status: 'M', staged: false }]);
+      }
+      if (command === 'get_git_branches') return Promise.resolve([{ name: 'main', current: true, kind: 'local' }]);
+      if (command === 'get_git_file_history') return Promise.resolve([]);
+      if (command === 'get_git_worktree_file_diff') {
+        return Promise.resolve('diff --git a/guide.md b/guide.md\n-old line\n+new line');
+      }
+      if (command === 'rollback_git_changed_file') return Promise.resolve({ message: '已回滚 guide.md 的改动' });
+      return defaultInvoke(command);
+    }) as never);
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /版本/ }));
+    fireEvent.click(await screen.findByRole('button', { name: '查看 guide.md 的改动' }));
+
+    const diffView = await screen.findByLabelText('工作区文件改动');
+    expect(within(diffView).getByText('guide.md')).toBeInTheDocument();
+    expect(within(diffView).getByText('Side-by-side viewer')).toBeInTheDocument();
+    expect(within(diffView).getByText('1 difference')).toBeInTheDocument();
+    expect(within(diffView).getByLabelText('原始版本')).toBeInTheDocument();
+    expect(within(diffView).getByLabelText('当前版本')).toBeInTheDocument();
+    expect(within(diffView).getByText('old line')).toHaveClass('worktree-code-cell', 'old');
+    expect(within(diffView).getByText('new line')).toHaveClass('worktree-code-cell', 'current');
+    expect(screen.queryByTestId('editor')).not.toBeInTheDocument();
+    expect(invoke).toHaveBeenCalledWith('get_git_worktree_file_diff', {
+      path: FOLDER,
+      filePath: 'guide.md',
+    });
+
+    fireEvent.click(within(diffView).getByRole('button', { name: '回滚 guide.md' }));
+
+    await waitFor(() => {
+      expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('guide.md'));
+      expect(invoke).toHaveBeenCalledWith('rollback_git_changed_file', {
+        path: FOLDER,
+        filePath: 'guide.md',
+      });
+    });
+  });
+
+  it('places the version center entry at the far left of the status bar', async () => {
     const FILE = '/repo/docs/guide.md';
     vi.mocked(open).mockResolvedValue(FILE);
 
@@ -362,6 +637,7 @@ describe('App', () => {
 
     const statusBar = container.querySelector('.status-bar');
     expect(statusBar?.firstElementChild).toHaveClass('git-status-btn');
+    expect(statusBar?.firstElementChild).toHaveTextContent('版本中心 · 1 个改动');
   });
 
   it('adds opened markdown files to the recent file menu', async () => {

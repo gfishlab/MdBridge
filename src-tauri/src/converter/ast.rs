@@ -75,7 +75,11 @@ fn preprocess_cjk_emphasis(content: &str) -> String {
                 while i < n && chars[i] == delim {
                     i += 1;
                 }
-                let before = if start > 0 { Some(chars[start - 1]) } else { None };
+                let before = if start > 0 {
+                    Some(chars[start - 1])
+                } else {
+                    None
+                };
                 let after = if i < n { Some(chars[i]) } else { None };
 
                 // 仅当定界符“外侧”是普通字符（非空白、非标点）时才需要补救：

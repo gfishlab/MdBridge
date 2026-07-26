@@ -124,7 +124,14 @@ impl ImageCache {
                     let last_accessed = fs::metadata(&path)
                         .and_then(|m| m.modified())
                         .unwrap_or(SystemTime::now());
-                    self.index.insert(key, CacheEntry { path, size, last_accessed });
+                    self.index.insert(
+                        key,
+                        CacheEntry {
+                            path,
+                            size,
+                            last_accessed,
+                        },
+                    );
                 }
             }
         }

@@ -9,6 +9,7 @@ src-tauri/target/
 # IDE
 .idea/
 .vscode/
+.zcode/
 *.swp
 *.swo
 
