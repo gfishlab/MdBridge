@@ -5,7 +5,6 @@ import { open, save } from '@tauri-apps/plugin-dialog';
 import { Editor } from './components/Editor';
 import { PlatformBar } from './components/PlatformBar';
 import { FileTree } from './components/FileTree';
-import { GitPanel, type GitChangedFile, type GitStatus } from './components/GitPanel';
 import { UpdateDialog } from './components/UpdateDialog';
 import { Settings } from './components/Settings';
 import { Help } from './components/Help/Help';
@@ -50,49 +49,6 @@ interface TabContextMenuState {
   y: number;
 }
 
-interface GitOperationResult {
-  message: string;
-}
-
-interface GitRemote {
-  name: string;
-  url: string;
-}
-
-interface GitBranch {
-  name: string;
-  current: boolean;
-  kind: string;
-}
-
-interface GitRemoteForm {
-  name: string;
-  domain: string;
-  branchName: string;
-  url: string;
-}
-
-interface GitToastState {
-  type: 'success' | 'error';
-  message: string;
-}
-
-type DiffRowKind = 'context' | 'added' | 'deleted' | 'modified' | 'hunk' | 'meta';
-
-interface SideBySideDiffRow {
-  id: string;
-  kind: DiffRowKind;
-  oldLineNumber: number | null;
-  newLineNumber: number | null;
-  oldText: string;
-  newText: string;
-}
-
-interface ParsedSideBySideDiff {
-  rows: SideBySideDiffRow[];
-  differenceCount: number;
-}
-
 export function getStartupFileFromSearch(search = window.location.search): string {
   return new URLSearchParams(search).get('file') ?? '';
 }
@@ -134,34 +90,6 @@ function App() {
   const [showViewMenu, setShowViewMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
-  const [showGitMenu, setShowGitMenu] = useState(false);
-  const [showBranchMenu, setShowBranchMenu] = useState(false);
-  const [showGitPanel, setShowGitPanel] = useState(false);
-  const [gitStatus, setGitStatus] = useState<GitStatus | null>(null);
-  const [gitStatusLoading, setGitStatusLoading] = useState(false);
-  const [gitBranches, setGitBranches] = useState<GitBranch[]>([]);
-  const [gitBranchesLoading, setGitBranchesLoading] = useState(false);
-  const [gitBranchesError, setGitBranchesError] = useState('');
-  const [gitBranchActionLoading, setGitBranchActionLoading] = useState('');
-  const [gitActionLoading, setGitActionLoading] = useState('');
-  const [gitRefreshSignal, setGitRefreshSignal] = useState(0);
-  const [selectedGitChangedFile, setSelectedGitChangedFile] = useState<GitChangedFile | null>(null);
-  const [worktreeDiff, setWorktreeDiff] = useState('');
-  const [worktreeDiffLoading, setWorktreeDiffLoading] = useState(false);
-  const [gitToast, setGitToast] = useState<GitToastState | null>(null);
-  const [showRemoteDialog, setShowRemoteDialog] = useState(false);
-  const [gitRemotes, setGitRemotes] = useState<GitRemote[]>([]);
-  const [selectedRemoteName, setSelectedRemoteName] = useState('');
-  const [remoteLoading, setRemoteLoading] = useState(false);
-  const [remoteActionLoading, setRemoteActionLoading] = useState('');
-  const [remoteError, setRemoteError] = useState('');
-  const [showAddRemoteForm, setShowAddRemoteForm] = useState(false);
-  const [remoteForm, setRemoteForm] = useState<GitRemoteForm>({
-    name: '',
-    domain: '',
-    branchName: 'master',
-    url: '',
-  });
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const [recentFolders, setRecentFolders] = useState<string[]>([]);
   const [tabContextMenu, setTabContextMenu] = useState<TabContextMenuState | null>(null);
@@ -170,8 +98,6 @@ function App() {
   const [prefersDarkMode, setPrefersDarkMode] = useState(false);
   const fileMenuRef = useRef<HTMLDivElement>(null);
   const editMenuRef = useRef<HTMLDivElement>(null);
-  const gitMenuRef = useRef<HTMLDivElement>(null);
-  const branchMenuRef = useRef<HTMLDivElement>(null);
   const viewMenuRef = useRef<HTMLDivElement>(null);
   const tabsRef = useRef(tabs);
   const activeTabIdRef = useRef(activeTabId);
@@ -188,8 +114,6 @@ function App() {
   const currentFile = activeTab?.path ?? '';
   const markdownStats = getMarkdownStats(markdown);
   const themeAppearance = resolveThemeAppearance(themePreference, prefersDarkMode);
-  const gitWorkspacePath = folderPath || currentFile;
-  const gitPanelWorkspacePath = gitWorkspacePath || gitStatus?.repo_root || '';
 
   useEffect(() => {
     tabsRef.current = tabs;
@@ -206,69 +130,6 @@ function App() {
   useEffect(() => {
     recentFoldersRef.current = recentFolders;
   }, [recentFolders]);
-
-  useEffect(() => {
-    if (!gitToast) return undefined;
-    const timer = window.setTimeout(() => setGitToast(null), 3200);
-    return () => window.clearTimeout(timer);
-  }, [gitToast]);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!gitWorkspacePath) {
-      setGitStatus(null);
-      setGitStatusLoading(false);
-      return;
-    }
-
-    setGitStatusLoading(true);
-    invoke<GitStatus>('get_git_status', { path: gitWorkspacePath })
-      .then((status) => {
-        if (cancelled) return;
-        setGitStatus(isGitStatus(status) ? status : null);
-      })
-      .catch(() => {
-        if (!cancelled) setGitStatus(null);
-      })
-      .finally(() => {
-        if (!cancelled) setGitStatusLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [gitWorkspacePath]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const actionPath = gitStatus?.repo_root || gitWorkspacePath;
-    if (!actionPath) {
-      setGitBranches([]);
-      setGitBranchesLoading(false);
-      setGitBranchesError('');
-      return;
-    }
-
-    setGitBranchesLoading(true);
-    setGitBranchesError('');
-    invoke<GitBranch[]>('get_git_branches', { path: actionPath })
-      .then((branches) => {
-        if (cancelled) return;
-        setGitBranches(Array.isArray(branches) ? branches : []);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setGitBranches([]);
-        setGitBranchesError(String(err));
-      })
-      .finally(() => {
-        if (!cancelled) setGitBranchesLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [gitStatus?.repo_root, gitWorkspacePath, gitRefreshSignal]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -296,12 +157,6 @@ function App() {
       }
       if (viewMenuRef.current && !viewMenuRef.current.contains(e.target as Node)) {
         setShowViewMenu(false);
-      }
-      if (gitMenuRef.current && !gitMenuRef.current.contains(e.target as Node)) {
-        setShowGitMenu(false);
-      }
-      if (branchMenuRef.current && !branchMenuRef.current.contains(e.target as Node)) {
-        setShowBranchMenu(false);
       }
       setTabContextMenu(null);
     }
@@ -815,292 +670,6 @@ function App() {
     setShowSettings(false);
   };
 
-  const handleToggleGitPanel = () => {
-    if (!gitPanelWorkspacePath) {
-      setStatusMessage('打开文件夹或保存文档后可使用版本中心');
-      return;
-    }
-    setShowGitPanel((visible) => !visible);
-  };
-
-  const handleRestoreGitVersion = (content: string) => {
-    const tabId = activeTabIdRef.current;
-    markdownRef.current = content;
-    hasLocalEditsRef.current = false;
-    tabsRef.current = tabsRef.current.map((tab) => (
-      tab.id === tabId ? { ...tab, content, hasLocalEdits: false } : tab
-    ));
-    updateTab(tabId, (tab) => ({ ...tab, content, hasLocalEdits: false }));
-    setStatusMessage('已恢复到选中的历史版本');
-  };
-
-  const refreshGitRepositoryStatus = async (path: string) => {
-    if (!path) {
-      setGitStatus(null);
-      return null;
-    }
-
-    setGitStatusLoading(true);
-    try {
-      const status = await invoke<GitStatus>('get_git_status', { path });
-      const normalizedStatus = isGitStatus(status) ? status : null;
-      setGitStatus(normalizedStatus);
-      return normalizedStatus;
-    } catch {
-      setGitStatus(null);
-      return null;
-    } finally {
-      setGitStatusLoading(false);
-    }
-  };
-
-  const resolveGitActionPath = async () => {
-    const currentPath = gitStatus?.repo_root || gitWorkspacePath;
-    if (currentPath) return currentPath;
-
-    const status = await refreshGitRepositoryStatus('.');
-    return status?.repo_root ?? '';
-  };
-
-  const loadGitRemotes = async (path?: string) => {
-    const actionPath = path || await resolveGitActionPath();
-    if (!actionPath) {
-      setRemoteError('打开文件夹或保存文档后可管理远程分支');
-      setGitRemotes([]);
-      return;
-    }
-
-    setRemoteLoading(true);
-    setRemoteError('');
-    try {
-      const remotes = await invoke<GitRemote[]>('get_git_remotes', { path: actionPath });
-      const normalizedRemotes = Array.isArray(remotes) ? remotes : [];
-      setGitRemotes(normalizedRemotes);
-      setSelectedRemoteName((current) => (
-        normalizedRemotes.some((remote) => remote.name === current)
-          ? current
-          : normalizedRemotes[0]?.name ?? ''
-      ));
-    } catch (err) {
-      setGitRemotes([]);
-      setSelectedRemoteName('');
-      setRemoteError(`读取远程分支配置失败: ${err}`);
-    } finally {
-      setRemoteLoading(false);
-    }
-  };
-
-  const runGitMenuAction = async (command: string, label: string) => {
-    setGitActionLoading(label);
-    setShowGitMenu(false);
-    try {
-      const actionPath = await resolveGitActionPath();
-      if (!actionPath) {
-        setStatusMessage('打开文件夹或保存文档后可使用 Git 操作');
-        return;
-      }
-
-      await flushSave();
-      const result = await invoke<GitOperationResult>(command, { path: actionPath });
-      const message = result.message || `${label}完成`;
-      setStatusMessage(message);
-      setGitToast({ type: 'success', message });
-      setGitRefreshSignal((value) => value + 1);
-      await refreshGitRepositoryStatus(actionPath);
-    } catch (err) {
-      setStatusMessage(`${label}失败: ${err}`);
-      setGitToast({ type: 'error', message: `${label}失败: ${err}` });
-    } finally {
-      setGitActionLoading('');
-    }
-  };
-
-  const handleCheckoutBranch = async (branch: GitBranch) => {
-    if (branch.current || gitBranchActionLoading) return;
-    const actionPath = await resolveGitActionPath();
-    if (!actionPath) {
-      setStatusMessage('打开文件夹或保存文档后可切换分支');
-      return;
-    }
-
-    const confirmed = (gitStatus?.changed_files ?? 0) === 0
-      || window.confirm(`切换到 ${branch.name} 前请确认：当前未保存的改动会继续保留，但可能需要你手动处理冲突。继续切换？`);
-    if (!confirmed) return;
-
-    setGitBranchActionLoading(branch.name);
-    setShowBranchMenu(false);
-    try {
-      await flushSave();
-      const result = await invoke<GitOperationResult>('checkout_git_branch', {
-        path: actionPath,
-        branch: branch.name,
-        kind: branch.kind,
-      });
-      const message = result.message || `已切换到 ${branch.name}`;
-      setStatusMessage(message);
-      setGitToast({ type: 'success', message });
-      setGitRefreshSignal((value) => value + 1);
-      await refreshGitRepositoryStatus(actionPath);
-    } catch (err) {
-      setStatusMessage(`切换分支失败: ${err}`);
-      setGitToast({ type: 'error', message: `切换分支失败: ${err}` });
-    } finally {
-      setGitBranchActionLoading('');
-    }
-  };
-
-  const handleManageRemoteBranches = async () => {
-    setShowGitMenu(false);
-    const actionPath = await resolveGitActionPath();
-    if (!actionPath) {
-      setStatusMessage('打开文件夹或保存文档后可管理远程分支');
-      return;
-    }
-
-    setShowRemoteDialog(true);
-    setShowAddRemoteForm(false);
-    setRemoteForm({
-      name: '',
-      domain: '',
-      branchName: gitStatus?.branch || 'master',
-      url: '',
-    });
-    setStatusMessage('已打开远程分支管理');
-    await loadGitRemotes(actionPath);
-  };
-
-  const handleCloseRemoteDialog = () => {
-    setShowRemoteDialog(false);
-    setShowAddRemoteForm(false);
-    setRemoteError('');
-  };
-
-  const handleAddRemote = async () => {
-    const actionPath = await resolveGitActionPath();
-    if (!actionPath) {
-      setRemoteError('打开文件夹或保存文档后可添加远程分支');
-      return;
-    }
-
-    setRemoteActionLoading('添加 remote');
-    setRemoteError('');
-    try {
-      const result = await invoke<GitOperationResult>('add_git_remote', {
-        path: actionPath,
-        name: remoteForm.name.trim(),
-        domain: remoteForm.domain.trim(),
-        branchName: remoteForm.branchName.trim(),
-        url: remoteForm.url.trim(),
-      });
-      const message = result.message || `已添加 remote ${remoteForm.name.trim()}`;
-      setGitToast({ type: 'success', message });
-      setStatusMessage(message);
-      setRemoteForm({
-        name: '',
-        domain: '',
-        branchName: gitStatus?.branch || 'master',
-        url: '',
-      });
-      setShowAddRemoteForm(false);
-      await loadGitRemotes(actionPath);
-    } catch (err) {
-      setRemoteError(`添加 remote 失败: ${err}`);
-    } finally {
-      setRemoteActionLoading('');
-    }
-  };
-
-  const handleRemoveRemote = async () => {
-    if (!selectedRemoteName) return;
-    const confirmed = window.confirm(`删除 remote ${selectedRemoteName}？`);
-    if (!confirmed) return;
-
-    const actionPath = await resolveGitActionPath();
-    if (!actionPath) {
-      setRemoteError('打开文件夹或保存文档后可删除远程分支');
-      return;
-    }
-
-    setRemoteActionLoading('删除 remote');
-    setRemoteError('');
-    try {
-      const result = await invoke<GitOperationResult>('remove_git_remote', {
-        path: actionPath,
-        name: selectedRemoteName,
-      });
-      const message = result.message || `已删除 remote ${selectedRemoteName}`;
-      setGitToast({ type: 'success', message });
-      setStatusMessage(message);
-      await loadGitRemotes(actionPath);
-    } catch (err) {
-      setRemoteError(`删除 remote 失败: ${err}`);
-    } finally {
-      setRemoteActionLoading('');
-    }
-  };
-
-  const handleChangedFileSelect = async (file: GitChangedFile) => {
-    const actionPath = gitPanelWorkspacePath || await resolveGitActionPath();
-    if (!actionPath) {
-      setStatusMessage('打开文件夹或保存文档后可查看改动');
-      return;
-    }
-
-    setSelectedGitChangedFile(file);
-    setWorktreeDiff('');
-    setWorktreeDiffLoading(true);
-    try {
-      await flushSave();
-      const nextDiff = await invoke<string>('get_git_worktree_file_diff', {
-        path: actionPath,
-        filePath: file.path,
-      });
-      setWorktreeDiff(nextDiff.trim() || '该文件没有可显示的改动。');
-    } catch (err) {
-      setWorktreeDiff(`读取改动失败: ${err}`);
-    } finally {
-      setWorktreeDiffLoading(false);
-    }
-  };
-
-  const handleCloseChangedFileDiff = () => {
-    setSelectedGitChangedFile(null);
-    setWorktreeDiff('');
-    setWorktreeDiffLoading(false);
-  };
-
-  const handleRollbackChangedFile = async () => {
-    if (!selectedGitChangedFile) return;
-
-    const confirmed = window.confirm(`回滚 ${selectedGitChangedFile.path} 的本地改动？此操作不可撤销。`);
-    if (!confirmed) return;
-
-    const actionPath = gitPanelWorkspacePath || await resolveGitActionPath();
-    if (!actionPath) {
-      setStatusMessage('打开文件夹或保存文档后可回滚改动');
-      return;
-    }
-
-    setGitActionLoading(`回滚 ${selectedGitChangedFile.path}`);
-    setWorktreeDiffLoading(true);
-    try {
-      await flushSave();
-      const result = await invoke<GitOperationResult>('rollback_git_changed_file', {
-        path: actionPath,
-        filePath: selectedGitChangedFile.path,
-      });
-      setStatusMessage(result.message || `已回滚 ${selectedGitChangedFile.path}`);
-      handleCloseChangedFileDiff();
-      setGitRefreshSignal((value) => value + 1);
-      await refreshGitRepositoryStatus(actionPath);
-    } catch (err) {
-      setStatusMessage(`回滚失败: ${err}`);
-    } finally {
-      setGitActionLoading('');
-      setWorktreeDiffLoading(false);
-    }
-  };
-
   return (
     <div
       className="app"
@@ -1110,42 +679,12 @@ function App() {
     >
       <header className="toolbar">
         <div className="toolbar-left">
-          <div className="branch-menu-container" ref={branchMenuRef}>
-            <button
-              type="button"
-              className={`branch-selector-btn ${showBranchMenu ? 'active' : ''}`}
-              onClick={() => {
-                setShowBranchMenu((visible) => !visible);
-                setShowFileMenu(false);
-                setShowEditMenu(false);
-                setShowGitMenu(false);
-                setShowViewMenu(false);
-              }}
-              disabled={!gitWorkspacePath && !gitStatus}
-              aria-label={getBranchSelectorAriaLabel(gitStatus, gitBranchesLoading)}
-            >
-              <GitMenuIcon />
-              <span>{getCurrentBranchLabel(gitStatus, gitBranchesLoading)}</span>
-              <ChevronDownIcon />
-            </button>
-            {showBranchMenu && (
-              <BranchDropdown
-                branches={gitBranches}
-                currentBranch={gitStatus?.branch ?? ''}
-                loading={gitBranchesLoading}
-                error={gitBranchesError}
-                actionLoading={gitBranchActionLoading}
-                onCheckout={handleCheckoutBranch}
-              />
-            )}
-          </div>
           <div className="file-menu-container" ref={fileMenuRef}>
             <button
               className="menu-btn"
               onClick={() => {
                 setShowFileMenu(!showFileMenu);
                 setShowEditMenu(false);
-                setShowGitMenu(false);
                 setShowViewMenu(false);
               }}
             >
@@ -1206,7 +745,6 @@ function App() {
               onClick={() => {
                 setShowEditMenu(!showEditMenu);
                 setShowFileMenu(false);
-                setShowGitMenu(false);
                 setShowViewMenu(false);
               }}
             >
@@ -1225,48 +763,6 @@ function App() {
             )}
           </div>
           <PlatformBar markdown={markdown} onStatusChange={setStatusMessage} />
-          <div className="file-menu-container" ref={gitMenuRef}>
-            <button
-              className={`menu-btn ${showGitMenu ? 'active' : ''}`}
-              onClick={() => {
-                setShowGitMenu(!showGitMenu);
-                setShowFileMenu(false);
-                setShowEditMenu(false);
-                setShowViewMenu(false);
-              }}
-            >
-              <GitMenuIcon />
-              Git
-            </button>
-            {showGitMenu && (
-              <div className="file-menu compact-menu git-top-menu">
-                <button
-                  type="button"
-                  onClick={() => runGitMenuAction('fetch_git_repository', 'Fetch 更新')}
-                  disabled={!!gitActionLoading}
-                >
-                  Fetch 更新
-                </button>
-                <button
-                  type="button"
-                  onClick={() => runGitMenuAction('pull_git_repository', 'Pull 拉取')}
-                  disabled={!!gitActionLoading}
-                >
-                  Pull 拉取
-                </button>
-                <button
-                  type="button"
-                  onClick={() => runGitMenuAction('push_git_repository', 'Push 推送')}
-                  disabled={!!gitActionLoading}
-                >
-                  Push 推送
-                </button>
-                <button type="button" onClick={handleManageRemoteBranches}>
-                  管理远程分支
-                </button>
-              </div>
-            )}
-          </div>
           <div className="file-menu-container" ref={viewMenuRef}>
             <button
               className="menu-btn"
@@ -1274,7 +770,6 @@ function App() {
                 setShowViewMenu(!showViewMenu);
                 setShowFileMenu(false);
                 setShowEditMenu(false);
-                setShowGitMenu(false);
               }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1331,21 +826,7 @@ function App() {
         </div>
       </header>
       <div className="main-content">
-        {showGitPanel && gitPanelWorkspacePath ? (
-          <GitPanel
-            workspacePath={gitPanelWorkspacePath}
-            currentFile={currentFile}
-            hasLocalEdits={!!activeTab?.hasLocalEdits}
-            selectedChangedFilePath={selectedGitChangedFile?.path ?? ''}
-            onBeforeGitAction={flushSave}
-            onChangedFileSelect={handleChangedFileSelect}
-            onClose={() => setShowGitPanel(false)}
-            onRepositoryStatusChange={setGitStatus}
-            onRestoreVersion={handleRestoreGitVersion}
-            onStatusChange={setStatusMessage}
-            refreshSignal={gitRefreshSignal}
-          />
-        ) : showFileTree && folderPath ? (
+        {showFileTree && folderPath ? (
           <FileTree
             folderPath={folderPath}
             onFileSelect={handleFileSelect}
@@ -1353,7 +834,7 @@ function App() {
             currentFile={currentFile}
           />
         ) : null}
-        <main className="content">
+        <main className="workspace-content">
           <div className="tab-strip" role="tablist" aria-label="打开的文档">
             {tabs.map((tab) => {
               const title = getTabTitle(tab);
@@ -1371,7 +852,7 @@ function App() {
                     setShowFileMenu(false);
                     setTabContextMenu({ tabId: tab.id, x: event.clientX, y: event.clientY });
                   }}
-                  >
+                >
                   {tab.hasLocalEdits && <span className="doc-tab-dirty" aria-label="未保存修改" />}
                   <span className="doc-tab-title">
                     {title}
@@ -1420,35 +901,14 @@ function App() {
               </button>
             </div>
           )}
-          {selectedGitChangedFile ? (
-            <GitWorktreeDiffView
-              file={selectedGitChangedFile}
-              diff={worktreeDiff}
-              loading={worktreeDiffLoading}
-              rollbackLoading={gitActionLoading === `回滚 ${selectedGitChangedFile.path}`}
-              onClose={handleCloseChangedFileDiff}
-              onRollback={handleRollbackChangedFile}
-            />
-          ) : (
-            <Editor
-              value={markdown}
-              onChange={handleEditorChange}
-              colorMode={themeAppearance}
-            />
-          )}
+          <Editor
+            value={markdown}
+            onChange={handleEditorChange}
+            colorMode={themeAppearance}
+          />
         </main>
       </div>
       <footer className="status-bar">
-        <button
-          type="button"
-          className={`git-status-btn ${showGitPanel ? 'active' : ''}`}
-          onClick={handleToggleGitPanel}
-          title="打开版本中心"
-          aria-label={getGitStatusAriaLabel(gitStatus, gitStatusLoading)}
-        >
-          <BranchStatusIcon />
-          <span>{getGitStatusLabel(gitStatus, gitStatusLoading)}</span>
-        </button>
         <span className="status-message">{statusMessage || '就绪'}</span>
         <span className="status-meta">{markdownStats.lines} 行</span>
         <span className="status-meta">{markdownStats.characters} 字符</span>
@@ -1457,34 +917,7 @@ function App() {
         </span>
         {currentFile && <span className="file-path">{currentFile}</span>}
       </footer>
-      {gitToast && (
-        <GitToast
-          type={gitToast.type}
-          message={gitToast.message}
-          onClose={() => setGitToast(null)}
-        />
-      )}
       <UpdateDialog />
-      {showRemoteDialog && (
-        <RemoteManagementDialog
-          remotes={gitRemotes}
-          selectedRemoteName={selectedRemoteName}
-          loading={remoteLoading}
-          actionLoading={remoteActionLoading}
-          error={remoteError}
-          showAddForm={showAddRemoteForm}
-          form={remoteForm}
-          onSelectRemote={setSelectedRemoteName}
-          onToggleAddForm={() => {
-            setRemoteError('');
-            setShowAddRemoteForm((visible) => !visible);
-          }}
-          onRemoveRemote={handleRemoveRemote}
-          onFormChange={setRemoteForm}
-          onAddRemote={handleAddRemote}
-          onClose={handleCloseRemoteDialog}
-        />
-      )}
       {showSettings && (
         <Settings
           onClose={() => setShowSettings(false)}
@@ -1496,590 +929,11 @@ function App() {
   );
 }
 
-function GitToast({
-  type,
-  message,
-  onClose,
-}: {
-  type: 'success' | 'error';
-  message: string;
-  onClose: () => void;
-}) {
-  return (
-    <div className={`git-toast ${type}`} role="status" aria-live="polite">
-      <span>{message}</span>
-      <button type="button" onClick={onClose} aria-label="关闭 Git 提示">
-        ×
-      </button>
-    </div>
-  );
-}
-
-function BranchDropdown({
-  branches,
-  currentBranch,
-  loading,
-  error,
-  actionLoading,
-  onCheckout,
-}: {
-  branches: GitBranch[];
-  currentBranch: string;
-  loading: boolean;
-  error: string;
-  actionLoading: string;
-  onCheckout: (branch: GitBranch) => void;
-}) {
-  const branchGroups = groupGitBranches(branches);
-
-  return (
-    <div className="branch-dropdown" role="menu" aria-label="分支列表">
-      <div className="branch-dropdown-header">
-        <span>当前分支</span>
-        <strong>{currentBranch || '未读取'}</strong>
-      </div>
-      {loading && <div className="branch-dropdown-state">正在读取分支...</div>}
-      {error && <div className="branch-dropdown-error">读取分支失败：{error}</div>}
-      {!loading && !error && branches.length === 0 && (
-        <div className="branch-dropdown-state">当前文档库还没有可显示的分支。</div>
-      )}
-      {!loading && !error && (
-        <>
-          <BranchDropdownGroup
-            title="本地分支"
-            branches={branchGroups.local}
-            actionLoading={actionLoading}
-            onCheckout={onCheckout}
-          />
-          <BranchDropdownGroup
-            title="远程分支"
-            branches={branchGroups.remote}
-            actionLoading={actionLoading}
-            onCheckout={onCheckout}
-          />
-          <BranchDropdownGroup
-            title="最近使用"
-            branches={branchGroups.recent}
-            actionLoading={actionLoading}
-            onCheckout={onCheckout}
-          />
-        </>
-      )}
-    </div>
-  );
-}
-
-function BranchDropdownGroup({
-  title,
-  branches,
-  actionLoading,
-  onCheckout,
-}: {
-  title: string;
-  branches: GitBranch[];
-  actionLoading: string;
-  onCheckout: (branch: GitBranch) => void;
-}) {
-  if (branches.length === 0) return null;
-
-  return (
-    <section className="branch-dropdown-group" aria-label={title}>
-      <div className="branch-dropdown-group-title">{title}</div>
-      {branches.map((branch) => (
-        <button
-          key={`${branch.kind}-${branch.name}`}
-          type="button"
-          role="menuitem"
-          className={`branch-dropdown-item ${branch.current ? 'current' : ''}`}
-          onClick={() => onCheckout(branch)}
-          disabled={!!actionLoading || branch.current}
-          aria-current={branch.current ? 'true' : undefined}
-          aria-label={`${branch.name} ${branch.current ? '当前分支' : getGitBranchKindLabel(branch.kind)}`}
-        >
-          <span className="branch-dropdown-item-name">{branch.name}</span>
-          {branch.current && <span className="branch-current-mark">当前</span>}
-        </button>
-      ))}
-    </section>
-  );
-}
-
-function RemoteManagementDialog({
-  remotes,
-  selectedRemoteName,
-  loading,
-  actionLoading,
-  error,
-  showAddForm,
-  form,
-  onSelectRemote,
-  onToggleAddForm,
-  onRemoveRemote,
-  onFormChange,
-  onAddRemote,
-  onClose,
-}: {
-  remotes: GitRemote[];
-  selectedRemoteName: string;
-  loading: boolean;
-  actionLoading: string;
-  error: string;
-  showAddForm: boolean;
-  form: GitRemoteForm;
-  onSelectRemote: (name: string) => void;
-  onToggleAddForm: () => void;
-  onRemoveRemote: () => void;
-  onFormChange: (form: GitRemoteForm) => void;
-  onAddRemote: () => void;
-  onClose: () => void;
-}) {
-  const canAddRemote = Boolean(form.name.trim()
-    && form.domain.trim()
-    && form.branchName.trim()
-    && form.url.trim()
-    && !actionLoading);
-
-  return (
-    <div className="remote-dialog-overlay" role="presentation">
-      <section
-        className="remote-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="remote-dialog-title"
-      >
-        <header className="remote-dialog-header">
-          <div>
-            <h2 id="remote-dialog-title">Management Remote</h2>
-            <p>管理当前文档库已配置的远程地址。</p>
-          </div>
-          <button type="button" className="remote-dialog-close" onClick={onClose} aria-label="关闭远程分支管理">
-            ×
-          </button>
-        </header>
-
-        <div className="remote-toolbar" aria-label="Remote 管理工具栏">
-          <button type="button" onClick={onToggleAddForm} aria-label="新增 remote">
-            +
-          </button>
-          <button
-            type="button"
-            onClick={onRemoveRemote}
-            disabled={!selectedRemoteName || !!actionLoading}
-            aria-label="删除 remote"
-          >
-            −
-          </button>
-          <span>{actionLoading || (loading ? '正在读取 remote...' : `${remotes.length} 个 remote`)}</span>
-        </div>
-
-        {error && <div className="remote-error" role="alert">{error}</div>}
-
-        <div className="remote-table" role="table" aria-label="Git Remotes">
-          <div className="remote-table-row heading" role="row">
-            <span role="columnheader">Name</span>
-            <span role="columnheader">URL</span>
-          </div>
-          {remotes.length === 0 && !loading && (
-            <div className="remote-empty">当前还没有配置 remote。</div>
-          )}
-          {remotes.map((remote) => (
-            <button
-              key={remote.name}
-              type="button"
-              className={`remote-table-row item ${remote.name === selectedRemoteName ? 'selected' : ''}`}
-              onClick={() => onSelectRemote(remote.name)}
-              role="row"
-              aria-label={`选择 remote ${remote.name}`}
-            >
-              <strong role="cell">{remote.name}</strong>
-              <span role="cell">{remote.url}</span>
-            </button>
-          ))}
-        </div>
-
-        {showAddForm && (
-          <div className="remote-add-form" aria-label="新增 Remote 表单">
-            <label>
-              <span>Name 名称</span>
-              <input
-                value={form.name}
-                onChange={(event) => onFormChange({ ...form, name: event.target.value })}
-                placeholder="origin"
-              />
-            </label>
-            <label>
-              <span>Domain 域名</span>
-              <input
-                value={form.domain}
-                onChange={(event) => onFormChange({ ...form, domain: event.target.value })}
-                placeholder="github.com"
-              />
-            </label>
-            <label>
-              <span>Branch 分支名</span>
-              <input
-                value={form.branchName}
-                onChange={(event) => onFormChange({ ...form, branchName: event.target.value })}
-                placeholder="master"
-              />
-            </label>
-            <label className="remote-url-field">
-              <span>URL 地址</span>
-              <input
-                value={form.url}
-                onChange={(event) => onFormChange({ ...form, url: event.target.value })}
-                placeholder="git@github.com:org/repo.git"
-              />
-            </label>
-            <div className="remote-form-actions">
-              <button type="button" onClick={onToggleAddForm}>取消</button>
-              <button
-                type="button"
-                className="primary"
-                onClick={onAddRemote}
-                disabled={!canAddRemote}
-              >
-                {actionLoading === '添加 remote' ? '添加中...' : '添加 Remote'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        <footer className="remote-dialog-footer">
-          <button type="button" className="primary" onClick={onClose}>
-            OK
-          </button>
-        </footer>
-      </section>
-    </div>
-  );
-}
-
-function GitWorktreeDiffView({
-  file,
-  diff,
-  loading,
-  rollbackLoading,
-  onClose,
-  onRollback,
-}: {
-  file: GitChangedFile;
-  diff: string;
-  loading: boolean;
-  rollbackLoading: boolean;
-  onClose: () => void;
-  onRollback: () => void;
-}) {
-  const parsedDiff = parseSideBySideDiff(diff);
-
-  return (
-    <section className="worktree-diff-view" aria-label="工作区文件改动">
-      <header className="worktree-diff-header">
-        <div className="worktree-diff-title">
-          <span>当前改动</span>
-          <strong>{file.path}</strong>
-        </div>
-        <div className="worktree-diff-actions">
-          <button type="button" className="worktree-secondary-btn" onClick={onClose}>
-            返回编辑
-          </button>
-          <button
-            type="button"
-            className="worktree-secondary-btn danger"
-            onClick={onRollback}
-            disabled={loading || rollbackLoading}
-          >
-            {rollbackLoading ? '回滚中...' : `回滚 ${file.path}`}
-          </button>
-        </div>
-      </header>
-      <div className="worktree-diff-toolbar" aria-label="差异查看工具栏">
-        <span className="worktree-view-mode">Side-by-side viewer</span>
-        <span className="worktree-toolbar-pill">Do not ignore</span>
-        <span className="worktree-toolbar-pill">Highlight words</span>
-        <span className="worktree-diff-count">{formatDifferenceCount(parsedDiff.differenceCount)}</span>
-      </div>
-      <div className="worktree-side-by-side" aria-label="差异内容">
-        <div className="worktree-pane-heading old" aria-label="原始版本">
-          <span>工作区版本</span>
-        </div>
-        <div className="worktree-pane-heading current" aria-label="当前版本">
-          <span>当前版本</span>
-        </div>
-        {loading ? (
-          <div className="worktree-diff-loading">正在读取改动...</div>
-        ) : parsedDiff.rows.length === 0 ? (
-          <div className="worktree-diff-loading">该文件没有可显示的改动。</div>
-        ) : (
-          <div className="worktree-diff-rows" role="table" aria-label="Side-by-side diff">
-            {parsedDiff.rows.map((row) => (
-              <div key={row.id} className={`worktree-diff-row ${row.kind}`} role="row">
-                {row.kind === 'hunk' || row.kind === 'meta' ? (
-                  <div className="worktree-hunk-line" role="cell">
-                    {row.oldText || row.newText}
-                  </div>
-                ) : (
-                  <>
-                    <span className="worktree-line-number old" role="cell">
-                      {row.oldLineNumber ?? ''}
-                    </span>
-                    <code className="worktree-code-cell old" role="cell">
-                      {row.oldText || ' '}
-                    </code>
-                    <span className="worktree-line-number current" role="cell">
-                      {row.newLineNumber ?? ''}
-                    </span>
-                    <code className="worktree-code-cell current" role="cell">
-                      {row.newText || ' '}
-                    </code>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function parseSideBySideDiff(diff: string): ParsedSideBySideDiff {
-  if (!diff.trim()) return { rows: [], differenceCount: 0 };
-
-  const lines = diff.split('\n');
-  const rows: SideBySideDiffRow[] = [];
-  let differenceCount = 0;
-  let oldLineNumber = 0;
-  let newLineNumber = 0;
-  let insideHunk = false;
-  let index = 0;
-
-  const addRow = (row: Omit<SideBySideDiffRow, 'id'>) => {
-    rows.push({ id: `diff-row-${rows.length}`, ...row });
-  };
-
-  while (index < lines.length) {
-    const line = lines[index];
-
-    if (line.startsWith('@@')) {
-      const match = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
-      if (match) {
-        oldLineNumber = Number(match[1]);
-        newLineNumber = Number(match[2]);
-        insideHunk = true;
-      }
-      addRow({
-        kind: 'hunk',
-        oldLineNumber: null,
-        newLineNumber: null,
-        oldText: line,
-        newText: line,
-      });
-      index += 1;
-      continue;
-    }
-
-    if (!insideHunk) {
-      if (isDiffMetadataLine(line)) {
-        index += 1;
-        continue;
-      }
-      if ((line.startsWith('-') && !line.startsWith('---'))
-        || (line.startsWith('+') && !line.startsWith('+++'))
-        || line.startsWith(' ')) {
-        insideHunk = true;
-        oldLineNumber = 1;
-        newLineNumber = 1;
-        continue;
-      }
-      addRow({
-        kind: 'meta',
-        oldLineNumber: null,
-        newLineNumber: null,
-        oldText: line,
-        newText: line,
-      });
-      index += 1;
-      continue;
-    }
-
-    if (line.startsWith('\\ No newline')) {
-      index += 1;
-      continue;
-    }
-
-    if (line.startsWith('-') && !line.startsWith('---')) {
-      const deletedLines: string[] = [];
-      const addedLines: string[] = [];
-
-      while (index < lines.length && lines[index].startsWith('-') && !lines[index].startsWith('---')) {
-        deletedLines.push(lines[index].slice(1));
-        index += 1;
-      }
-
-      while (index < lines.length && lines[index].startsWith('+') && !lines[index].startsWith('+++')) {
-        addedLines.push(lines[index].slice(1));
-        index += 1;
-      }
-
-      differenceCount += 1;
-      const rowCount = Math.max(deletedLines.length, addedLines.length);
-      for (let pairIndex = 0; pairIndex < rowCount; pairIndex += 1) {
-        const oldText = deletedLines[pairIndex] ?? '';
-        const newText = addedLines[pairIndex] ?? '';
-        const hasOld = pairIndex < deletedLines.length;
-        const hasNew = pairIndex < addedLines.length;
-
-        addRow({
-          kind: hasOld && hasNew ? 'modified' : hasOld ? 'deleted' : 'added',
-          oldLineNumber: hasOld ? oldLineNumber : null,
-          newLineNumber: hasNew ? newLineNumber : null,
-          oldText,
-          newText,
-        });
-        if (hasOld) oldLineNumber += 1;
-        if (hasNew) newLineNumber += 1;
-      }
-      continue;
-    }
-
-    if (line.startsWith('+') && !line.startsWith('+++')) {
-      differenceCount += 1;
-      while (index < lines.length && lines[index].startsWith('+') && !lines[index].startsWith('+++')) {
-        addRow({
-          kind: 'added',
-          oldLineNumber: null,
-          newLineNumber,
-          oldText: '',
-          newText: lines[index].slice(1),
-        });
-        newLineNumber += 1;
-        index += 1;
-      }
-      continue;
-    }
-
-    if (line.startsWith(' ')) {
-      addRow({
-        kind: 'context',
-        oldLineNumber,
-        newLineNumber,
-        oldText: line.slice(1),
-        newText: line.slice(1),
-      });
-      oldLineNumber += 1;
-      newLineNumber += 1;
-      index += 1;
-      continue;
-    }
-
-    addRow({
-      kind: 'meta',
-      oldLineNumber: null,
-      newLineNumber: null,
-      oldText: line,
-      newText: line,
-    });
-    index += 1;
-  }
-
-  return { rows, differenceCount };
-}
-
-function isDiffMetadataLine(line: string) {
-  return line.startsWith('diff --git')
-    || line.startsWith('index ')
-    || line.startsWith('--- ')
-    || line.startsWith('+++ ');
-}
-
-function formatDifferenceCount(count: number) {
-  return `${count} ${count === 1 ? 'difference' : 'differences'}`;
-}
-
 function getMarkdownStats(value: string) {
   return {
     lines: value.length === 0 ? 1 : value.split(/\r\n|\r|\n/).length,
     characters: value.length,
   };
-}
-
-function isGitStatus(value: unknown): value is GitStatus {
-  if (!value || typeof value !== 'object') return false;
-  const candidate = value as GitStatus;
-  return typeof candidate.branch === 'string'
-    && typeof candidate.changed_files === 'number'
-    && typeof candidate.repo_root === 'string';
-}
-
-function groupGitBranches(branches: GitBranch[]) {
-  return {
-    local: branches.filter((branch) => branch.kind === 'local'),
-    remote: branches.filter((branch) => branch.kind === 'remote'),
-    recent: branches.filter((branch) => branch.kind === 'recent'),
-  };
-}
-
-function getCurrentBranchLabel(status: GitStatus | null, loading: boolean) {
-  if (loading) return '读取分支';
-  return status?.branch || '分支';
-}
-
-function getBranchSelectorAriaLabel(status: GitStatus | null, loading: boolean) {
-  if (loading) return '正在读取分支列表';
-  if (!status) return '打开分支列表';
-  return `当前分支 ${status.branch}，打开分支列表`;
-}
-
-function getGitBranchKindLabel(kind: string) {
-  if (kind === 'remote') return '远程分支';
-  if (kind === 'recent') return '最近使用分支';
-  return '本地分支';
-}
-
-function getGitStatusLabel(status: GitStatus | null, loading: boolean) {
-  if (loading) return '版本中心读取中';
-  if (!status) return '版本中心';
-  if (status.changed_files === 0) return '版本中心';
-  return `版本中心 · ${status.changed_files} 个改动`;
-}
-
-function getGitStatusAriaLabel(status: GitStatus | null, loading: boolean) {
-  if (loading) return '版本中心正在读取状态';
-  if (!status) return '打开版本中心';
-  if (status.changed_files === 0) return '打开版本中心，当前没有改动';
-  return `打开版本中心，当前有 ${status.changed_files} 个改动`;
-}
-
-function BranchStatusIcon() {
-  return (
-    <svg className="status-branch-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 2.75 21.25 12 12 21.25 2.75 12 12 2.75Z" />
-      <path d="M8 8v6" />
-      <path d="M16 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />
-      <path d="M8 18a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />
-      <path d="M16 10c0 2.7-1.7 4-5 4H8" />
-    </svg>
-  );
-}
-
-function GitMenuIcon() {
-  return (
-    <svg className="toolbar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M6 3v12" />
-      <path d="M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
-      <path d="M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
-      <path d="M18 9c0 4-3 6-7 6H6" />
-    </svg>
-  );
-}
-
-function ChevronDownIcon() {
-  return (
-    <svg className="branch-chevron-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="m6 9 6 6 6-6" />
-    </svg>
-  );
 }
 
 export default App;

@@ -2,7 +2,6 @@ mod clipboard;
 mod commands;
 mod config;
 mod converter;
-mod git_integration;
 mod image_cache;
 mod tray;
 mod updater;
@@ -48,26 +47,6 @@ pub fn run() {
             commands::get_platforms,
             commands::convert_and_copy,
             commands::read_file,
-            commands::get_git_status,
-            commands::get_git_branches,
-            commands::get_git_changed_files,
-            commands::get_git_remotes,
-            commands::add_git_remote,
-            commands::remove_git_remote,
-            commands::checkout_git_branch,
-            commands::get_git_file_history,
-            commands::get_git_commit_graph,
-            commands::get_git_file_diff,
-            commands::get_git_worktree_file_diff,
-            commands::restore_git_file_revision,
-            commands::commit_git_file,
-            commands::commit_git_files,
-            commands::fetch_git_repository,
-            commands::pull_git_repository,
-            commands::push_git_repository,
-            commands::rollback_git_changed_file,
-            commands::get_git_conflicts,
-            commands::resolve_git_conflict,
             commands::open_new_window,
             commands::open_file_in_new_window,
             commands::open_folder_in_new_window,
