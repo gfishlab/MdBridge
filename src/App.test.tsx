@@ -70,8 +70,15 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: /发布/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /设置/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /帮助/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '视图' })).not.toBeInTheDocument();
   });
 
+  it('keeps the file tree toggle in the file menu', () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '文件' }));
+    expect(screen.getByRole('button', { name: '显示文件树' })).toBeDisabled();
+  });
 
   it('applies configured theme and text style on startup', async () => {
     vi.mocked(invoke).mockImplementation(((command: string) => {
@@ -207,6 +214,13 @@ describe('App', () => {
         },
       });
     });
+
+    fireEvent.click(screen.getByRole('button', { name: '文件' }));
+    fireEvent.click(screen.getByRole('button', { name: '隐藏文件树' }));
+    expect(document.querySelector('.file-tree-wrapper')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '文件' }));
+    expect(screen.getByRole('button', { name: '显示文件树' })).not.toBeDisabled();
   });
 
   it('opens a blank MDBridge window from the file menu', async () => {

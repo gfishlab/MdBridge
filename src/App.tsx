@@ -87,7 +87,6 @@ function App() {
   const [showFileTree, setShowFileTree] = useState(false);
   const [showFileMenu, setShowFileMenu] = useState(false);
   const [showEditMenu, setShowEditMenu] = useState(false);
-  const [showViewMenu, setShowViewMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
@@ -98,7 +97,6 @@ function App() {
   const [prefersDarkMode, setPrefersDarkMode] = useState(false);
   const fileMenuRef = useRef<HTMLDivElement>(null);
   const editMenuRef = useRef<HTMLDivElement>(null);
-  const viewMenuRef = useRef<HTMLDivElement>(null);
   const tabsRef = useRef(tabs);
   const activeTabIdRef = useRef(activeTabId);
   const recentFilesRef = useRef<string[]>([]);
@@ -154,9 +152,6 @@ function App() {
       }
       if (editMenuRef.current && !editMenuRef.current.contains(e.target as Node)) {
         setShowEditMenu(false);
-      }
-      if (viewMenuRef.current && !viewMenuRef.current.contains(e.target as Node)) {
-        setShowViewMenu(false);
       }
       setTabContextMenu(null);
     }
@@ -288,7 +283,6 @@ function App() {
     setShowFileTree(true);
     rememberRecentFolder(path);
     setShowFileMenu(false);
-    setShowViewMenu(false);
   };
 
   // Persist any pending debounced auto-save immediately. Called when the user
@@ -685,7 +679,6 @@ function App() {
               onClick={() => {
                 setShowFileMenu(!showFileMenu);
                 setShowEditMenu(false);
-                setShowViewMenu(false);
               }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -701,6 +694,15 @@ function App() {
                 <button onClick={handleOpenFileInNewWindow}>在新窗口打开文件</button>
                 <button onClick={handleOpenFolder}>打开文件夹</button>
                 <button onClick={handleOpenFolderInNewWindow}>在新窗口打开文件夹</button>
+                <button
+                  disabled={!folderPath}
+                  onClick={() => {
+                    setShowFileTree((visible) => !visible);
+                    setShowFileMenu(false);
+                  }}
+                >
+                  {showFileTree ? '隐藏文件树' : '显示文件树'}
+                </button>
                 <button onClick={handleSave}>保存</button>
                 {(recentFiles.length > 0 || recentFolders.length > 0) && (
                   <>
@@ -745,7 +747,6 @@ function App() {
               onClick={() => {
                 setShowEditMenu(!showEditMenu);
                 setShowFileMenu(false);
-                setShowViewMenu(false);
               }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -763,45 +764,6 @@ function App() {
             )}
           </div>
           <PlatformBar markdown={markdown} onStatusChange={setStatusMessage} />
-          <div className="file-menu-container" ref={viewMenuRef}>
-            <button
-              className="menu-btn"
-              onClick={() => {
-                setShowViewMenu(!showViewMenu);
-                setShowFileMenu(false);
-                setShowEditMenu(false);
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="16" rx="2"/>
-                <path d="M9 4v16"/>
-                <path d="M14 9h4"/>
-                <path d="M14 13h4"/>
-              </svg>
-              视图
-            </button>
-            {showViewMenu && (
-              <div className="file-menu compact-menu">
-                <button
-                  onClick={() => {
-                    setShowFileTree((visible) => !visible);
-                    setShowViewMenu(false);
-                  }}
-                  disabled={!folderPath}
-                >
-                  {showFileTree ? '隐藏文件树' : '显示文件树'}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowSettings(true);
-                    setShowViewMenu(false);
-                  }}
-                >
-                  外观和文字样式
-                </button>
-              </div>
-            )}
-          </div>
           <button
             className="menu-btn"
             onClick={() => setShowSettings(true)}
