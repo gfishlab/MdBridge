@@ -16,6 +16,7 @@ Object.defineProperty(window, 'matchMedia', {
 });
 
 vi.mock('@tauri-apps/api/core', () => ({
+  convertFileSrc: vi.fn((path: string) => `asset://localhost/${encodeURIComponent(path)}`),
   invoke: vi.fn((command: string) => {
     if (command === 'get_platforms') return Promise.resolve([]);
     if (command === 'get_config') {

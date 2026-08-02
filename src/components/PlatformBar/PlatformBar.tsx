@@ -9,10 +9,11 @@ interface Platform {
 
 interface PlatformBarProps {
   markdown: string;
+  documentPath: string;
   onStatusChange: (message: string) => void;
 }
 
-export function PlatformBar({ markdown, onStatusChange }: PlatformBarProps) {
+export function PlatformBar({ markdown, documentPath, onStatusChange }: PlatformBarProps) {
   const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -37,6 +38,7 @@ export function PlatformBar({ markdown, onStatusChange }: PlatformBarProps) {
       const result = await invoke<string>('convert_and_copy', {
         markdown,
         platform,
+        documentPath: documentPath || null,
       });
       onStatusChange(result);
     } catch (err) {

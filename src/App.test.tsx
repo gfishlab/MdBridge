@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -64,8 +64,10 @@ async function openSelectedMarkdownFile() {
 }
 
 describe('App', () => {
-  it('renders the toolbar actions', () => {
-    render(<App />);
+  it('renders the toolbar actions', async () => {
+    await act(async () => {
+      render(<App />);
+    });
     expect(screen.getByRole('button', { name: /文件/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /发布/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /设置/ })).toBeInTheDocument();
@@ -73,8 +75,10 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: '视图' })).not.toBeInTheDocument();
   });
 
-  it('keeps the file tree toggle in the file menu', () => {
-    render(<App />);
+  it('keeps the file tree toggle in the file menu', async () => {
+    await act(async () => {
+      render(<App />);
+    });
 
     fireEvent.click(screen.getByRole('button', { name: '文件' }));
     expect(screen.getByRole('button', { name: '显示文件树' })).toBeDisabled();
@@ -128,6 +132,115 @@ describe('App', () => {
       expect(container.querySelector('.app')).toHaveAttribute('data-theme', 'solarized');
       expect(container.querySelector('.app')).toHaveAttribute('data-text-style', 'comfortable');
     });
+  });
+
+  it('saves PicGo Server image import and description preferences from settings', async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: /设置/ }));
+    await screen.findByRole('heading', { name: '设置' });
+
+    const selects = screen.getAllByRole('combobox');
+    fireEvent.change(selects[2], { target: { value: 'picgo-server' } });
+    fireEvent.change(selects[3], { target: { value: 'custom' } });
+
+    const settingsDialog = screen.getByRole('heading', { name: '设置' }).closest('.settings-dialog');
+    expect(settingsDialog).not.toBeNull();
+    const textboxes = within(settingsDialog as HTMLElement).getAllByRole('textbox');
+    fireEvent.change(textboxes[0], { target: { value: 'http://127.0.0.1:4000/upload' } });
+    fireEvent.change(textboxes[1], { target: { value: '文章配图' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith('update_config', {
+        updates: expect.objectContaining({
+          image_import_mode: 'picgo-server',
+          picgo_server_url: 'http://127.0.0.1:4000/upload',
+          image_alt_text_mode: 'custom',
+          image_alt_text_custom: '文章配图',
+        }),
+      });
+    });
+  });
+
+  it('offers PicGo CLI testing and directional resize controls in settings', async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: /设置/ }));
+    await screen.findByRole('heading', { name: '设置' });
+
+    const selects = screen.getAllByRole('combobox');
+    fireEvent.change(selects[2], { target: { value: 'picgo-cli' } });
+
+    expect(screen.getByRole('button', { name: '测试上传' })).toBeInTheDocument();
+    expect(screen.getByLabelText('PicGo CLI 命令')).toHaveValue('picgo');
+
+    const dialog = screen.getByRole('heading', { name: '设置' }).closest('.settings-dialog');
+    expect(dialog?.querySelectorAll('[data-resize-direction]').length).toBe(8);
+    const scrollContent = dialog?.querySelector('.settings-dialog-content');
+    expect(scrollContent).toBeInTheDocument();
+    expect(scrollContent?.querySelectorAll('[data-resize-direction]').length).toBe(0);
+
+    fireEvent.click(screen.getByRole('button', { name: '测试上传' }));
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith('test_picgo_upload', {
+        mode: 'picgo-cli',
+        cliCommand: 'picgo',
+        cliConfigPath: null,
+        serverUrl: null,
+      });
+    });
+  });
+
+  it('automatically uses a discovered PicGo Desktop configuration for CLI uploads', async () => {
+    vi.mocked(invoke).mockImplementation(((command: string) => {
+      if (command === 'get_picgo_cli_config_source') {
+        return Promise.resolve({
+          source: 'desktop',
+          path: '/Users/test/Library/Application Support/picgo/data.json',
+        });
+      }
+      return defaultInvoke(command);
+    }) as never);
+
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /设置/ }));
+    await screen.findByRole('heading', { name: '设置' });
+
+    const selects = screen.getAllByRole('combobox');
+    fireEvent.change(selects[2], { target: { value: 'picgo-cli' } });
+
+    expect(await screen.findByText('自动使用 PicGo Desktop 配置')).toBeInTheDocument();
+    expect(screen.queryByLabelText('PicGo 配置文件（可选）')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '使用自定义配置文件' }));
+    expect(screen.getByLabelText('PicGo 配置文件（可选）')).toBeInTheDocument();
+  });
+
+  it('clears a PicGo failure before showing another image import mode', async () => {
+    vi.mocked(invoke).mockImplementation(((command: string) => {
+      if (command === 'test_picgo_upload') {
+        return Promise.reject(new Error('找不到 PicGo CLI'));
+      }
+      return defaultInvoke(command);
+    }) as never);
+
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /设置/ }));
+    await screen.findByRole('heading', { name: '设置' });
+
+    const selects = screen.getAllByRole('combobox');
+    fireEvent.change(selects[2], { target: { value: 'picgo-cli' } });
+    fireEvent.click(screen.getByRole('button', { name: '测试上传' }));
+
+    await screen.findByText(/测试失败：.*找不到 PicGo CLI/);
+    expect(screen.getByRole('button', { name: '安装 PicGo CLI' })).toBeInTheDocument();
+
+    fireEvent.change(selects[2], { target: { value: 'absolute' } });
+    fireEvent.change(selects[2], { target: { value: 'picgo-cli' } });
+
+    expect(screen.queryByText(/测试失败：/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '安装 PicGo CLI' })).not.toBeInTheDocument();
   });
 
   it('syncs appearance when another window updates config', async () => {

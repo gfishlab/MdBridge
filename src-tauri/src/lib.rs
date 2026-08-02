@@ -3,6 +3,7 @@ mod commands;
 mod config;
 mod converter;
 mod image_cache;
+mod image_import;
 mod tray;
 mod updater;
 
@@ -42,6 +43,7 @@ pub fn run() {
             config: Mutex::new(config),
             image_cache: Mutex::new(ImageCache::new(cache_size)),
             folder_watchers: Mutex::new(HashMap::new()),
+            picgo_server_process: Mutex::new(None),
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_platforms,
@@ -58,6 +60,13 @@ pub fn run() {
             commands::get_config,
             commands::update_config,
             commands::clear_image_cache,
+            commands::import_pasted_image,
+            commands::format_image_link,
+            commands::test_picgo_upload,
+            commands::get_picgo_cli_config_source,
+            commands::install_picgo_cli,
+            commands::start_picgo_server,
+            commands::open_picgo_install_guide,
             commands::check_for_updates,
             commands::install_update,
             commands::get_app_version,
@@ -102,8 +111,7 @@ pub fn run() {
                     // 收到新文件请求」，此时应保留用户正在使用的 main 窗口。
                     let is_file_launch = {
                         let launch = LAUNCH_TIME_SECS.load(Ordering::Relaxed);
-                        launch > 0
-                            && now_secs().saturating_sub(launch) <= FILE_LAUNCH_WINDOW_SECS
+                        launch > 0 && now_secs().saturating_sub(launch) <= FILE_LAUNCH_WINDOW_SECS
                     };
                     if is_file_launch && !urls.is_empty() {
                         if let Some(window) = _app.get_webview_window("main") {
@@ -119,6 +127,7 @@ pub fn run() {
                         }
                     }
                 }
+                tauri::RunEvent::Exit => commands::stop_managed_picgo_server(_app),
                 _ => {}
             }
         })

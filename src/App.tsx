@@ -28,6 +28,13 @@ interface Config {
   check_updates_on_startup: boolean;
   theme_preference?: string;
   text_style?: string;
+  image_import_mode?: string;
+  image_custom_directory?: string;
+  picgo_server_url?: string;
+  picgo_cli_command?: string;
+  picgo_cli_config_path?: string;
+  image_alt_text_mode?: string;
+  image_alt_text_custom?: string;
   recent_files: string[];
   recent_folders: string[];
 }
@@ -493,6 +500,27 @@ function App() {
     }, AUTO_SAVE_DELAY);
   };
 
+  const handleEditorInsertMarkdown = (
+    tabId: string,
+    insertedMarkdown: string,
+    selectionStart: number,
+    selectionEnd: number,
+    expectedValue: string,
+  ): boolean => {
+    if (tabId !== activeTabIdRef.current) {
+      return false;
+    }
+
+    const currentMarkdown = markdownRef.current;
+    if (currentMarkdown !== expectedValue) {
+      return false;
+    }
+    const start = Math.min(Math.max(selectionStart, 0), currentMarkdown.length);
+    const end = Math.min(Math.max(selectionEnd, start), currentMarkdown.length);
+    handleEditorChange(`${currentMarkdown.slice(0, start)}${insertedMarkdown}${currentMarkdown.slice(end)}`);
+    return true;
+  };
+
   useEffect(() => {
     if (!folderPath) return;
 
@@ -763,7 +791,11 @@ function App() {
               </div>
             )}
           </div>
-          <PlatformBar markdown={markdown} onStatusChange={setStatusMessage} />
+          <PlatformBar
+            markdown={markdown}
+            documentPath={currentFile}
+            onStatusChange={setStatusMessage}
+          />
           <button
             className="menu-btn"
             onClick={() => setShowSettings(true)}
@@ -866,6 +898,17 @@ function App() {
           <Editor
             value={markdown}
             onChange={handleEditorChange}
+            onInsertMarkdown={(insertedMarkdown, selectionStart, selectionEnd, expectedValue) =>
+              handleEditorInsertMarkdown(
+                activeTabId,
+                insertedMarkdown,
+                selectionStart,
+                selectionEnd,
+                expectedValue,
+              )
+            }
+            onStatusChange={setStatusMessage}
+            documentPath={currentFile}
             colorMode={themeAppearance}
           />
         </main>
