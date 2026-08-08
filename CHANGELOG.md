@@ -2,6 +2,12 @@
 
 本项目所有版本的变更都记录在此文件中。版本号遵循语义化版本规范。
 
+## v3.1.1
+
+### 修复
+
+- 修复微信公众号发布时 TypeScript / TSX 代码块完全没有语法高亮的问题。syntect 默认语法集不包含 TypeScript，现在在编译期内置 TypeScript 与 TypeScriptReact 语法定义，`typescript`、`ts`、`tsx`、`typescriptreact` 围栏的代码块均可正确上色。
+
 ## v3.1.0
 
 ### 新增
