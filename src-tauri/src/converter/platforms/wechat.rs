@@ -1,10 +1,11 @@
 use super::PlatformConverter;
 use crate::converter::ast::walk_nodes;
 use comrak::nodes::{AstNode, ListType, NodeValue};
+use std::sync::OnceLock;
 use syntect::easy::HighlightLines;
 use syntect::highlighting::ThemeSet;
 use syntect::html::{styled_line_to_highlighted_html, IncludeBackground};
-use syntect::parsing::SyntaxSet;
+use syntect::parsing::{SyntaxDefinition, SyntaxSet};
 
 pub struct WechatConverter;
 
@@ -154,6 +155,32 @@ struct HighlightedCodeLine {
     html: String,
 }
 
+/// syntect 默认语法集不包含 TypeScript/TSX（syntect issue #168），导致
+/// ` ```typescript ` / ` ```tsx ` 围栏的代码块完全不上色。这里在编译期把两份
+/// 预合并、无 `extends:` 依赖的 ST3 格式 `.sublime-syntax`（源自
+/// Microsoft/TypeScript-TmLanguage，由 Keats/zola 整理）embed 进二进制，
+/// 叠加到 syntect 自带的默认语法集上。
+///
+/// 用 `OnceLock` 全局缓存，避免每次渲染代码块都重新解析 ~200KB YAML + 重建
+/// SyntaxSet（实测首次构建约几十毫秒，之后零成本）。
+const TS_SYNTAX: &str = include_str!("../../../syntaxes/TypeScript.sublime-syntax");
+const TSX_SYNTAX: &str = include_str!("../../../syntaxes/TypeScriptReact.sublime-syntax");
+
+fn syntax_set() -> &'static SyntaxSet {
+    static SYNTAX_SET: OnceLock<SyntaxSet> = OnceLock::new();
+    SYNTAX_SET.get_or_init(|| {
+        let mut builder = SyntaxSet::load_defaults_newlines().into_builder();
+        for (src, name) in [(TS_SYNTAX, "TypeScript"), (TSX_SYNTAX, "TypeScriptReact")] {
+            // parse failure 说明 embed 的语法文件损坏——属于构建期就该发现的 bug，
+            // 直接 panic 让 CI 立刻暴露，而不是静默回退到纯文本。
+            let def = SyntaxDefinition::load_from_str(src, true, Some(name))
+                .unwrap_or_else(|e| panic!("failed to parse {name}.sublime-syntax: {e}"));
+            builder.add(def);
+        }
+        builder.build()
+    })
+}
+
 /// 用 syntect 把代码逐行高亮成带 inline color 的 HTML 片段（不含 `<pre>` 外壳）。
 ///
 /// `info` 是代码围栏后的语言标记（如 `java`、`python`，可能含 ` ```java title` 这样的
@@ -167,7 +194,7 @@ fn highlight_code_to_html_lines(info: &str, code: &str) -> Option<Vec<Highlighte
         return None;
     }
 
-    let ps = SyntaxSet::load_defaults_newlines();
+    let ps = syntax_set();
     let ts = ThemeSet::load_defaults();
     let theme = &ts.themes["InspiredGitHub"];
 
@@ -625,6 +652,70 @@ mod tests {
         // 代码内容保留；单词间空格被转成 U+00A0（微信兼容），所以分别断言 token 存在
         assert!(html.contains("fn"));
         assert!(html.contains("main"));
+    }
+
+    #[test]
+    fn test_wechat_code_block_typescript_is_highlighted() {
+        // syntect 默认语法集不含 TypeScript，必须靠 syntax_set() 叠加 embed 的
+        // .sublime-syntax 才能上色。回归测试：typesciprt/ts/tsx 围栏必须产生
+        // 带颜色 span 的真正高亮，而不是回退纯文本。
+        let arena = Arena::new();
+        for lang in ["typescript", "ts", "tsx", "typescriptreact"] {
+            let fenced = format!(
+                "```{}\nimport {{ OpenAI }} from \"@langchain/openai\";\n```",
+                lang
+            );
+            let doc = parse_markdown(&arena, &fenced);
+            let html = WechatConverter.convert(doc);
+            assert!(
+                html.contains("<span style=\"font-weight:bold;color:#a71d5d;\">import </span>"),
+                "lang `{}` should produce keyword highlight span for `import`, got: {}",
+                lang,
+                html
+            );
+        }
+    }
+
+    #[test]
+    fn test_wechat_code_block_tsx_content_preserved() {
+        // TSX 语法较重，验证高亮后内容不丢失、结构完整
+        let arena = Arena::new();
+        let doc = parse_markdown(
+            &arena,
+            "```tsx\nconst App = () => <div>Hello</div>;\nexport default App;\n```",
+        );
+        let html = WechatConverter.convert(doc);
+        assert!(html.contains("App"), "TSX content should be preserved");
+        assert!(html.contains("export"), "TSX content should be preserved");
+        // TSX 关键字应该被上色（带 font-weight:bold 的 span）
+        assert!(
+            html.contains("color:#a71d5d;\">export"),
+            "TSX `export` keyword should be highlighted, got: {}",
+            html
+        );
+    }
+
+    #[test]
+    fn test_wechat_code_block_existing_languages_still_highlight() {
+        // 确保 TypeScript 的加入没有破坏既有的 JS/Python/Rust 等高亮
+        let arena = Arena::new();
+        let cases = [
+            ("javascript", "const x = 1;"),
+            ("python", "def foo():"),
+            ("rust", "fn main() {"),
+            ("java", "public class A {"),
+        ];
+        for (lang, code) in cases {
+            let fenced = format!("```{}\n{}\n```", lang, code);
+            let doc = parse_markdown(&arena, &fenced);
+            let html = WechatConverter.convert(doc);
+            assert!(
+                html.contains("color:#a71d5d;"),
+                "lang `{}` should still produce keyword highlight, got: {}",
+                lang,
+                html
+            );
+        }
     }
 
     #[test]
