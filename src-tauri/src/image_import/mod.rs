@@ -266,8 +266,10 @@ pub async fn test_picgo_upload(
     cli_command: Option<&str>,
     cli_config_path: Option<&str>,
 ) -> Result<String, String> {
-    let mut config = AppConfig::default();
-    config.image_import_mode = mode.to_string();
+    let mut config = AppConfig {
+        image_import_mode: mode.to_string(),
+        ..Default::default()
+    };
     if let Some(url) = server_url {
         config.picgo_server_url = url.to_string();
     }

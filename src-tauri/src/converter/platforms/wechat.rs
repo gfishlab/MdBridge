@@ -83,7 +83,7 @@ fn render_block<'a>(node: &'a AstNode<'a>, html: &mut String) {
         NodeValue::Image(image) => {
             html.push_str(&format!(
                 "<img src=\"{}\" style=\"max-width:100%;\" />",
-                &image.url
+                image.url
             ));
         }
         // 微信公众号对表格支持差，转为纯文本段落
@@ -210,7 +210,7 @@ fn highlight_code_to_html_lines(info: &str, code: &str) -> Option<Vec<Highlighte
         // syntect 的 highlight_line 期望行尾带换行符，输出的 regions 本身就包含该 \n，
         // 但最终渲染时我们按行生成 block 容器，所以要把末尾换行从 region 里剥掉。
         let line_with_nl = format!("{}\n", code_without_indent);
-        let mut regions = highlighter.highlight_line(&line_with_nl, &ps).ok()?;
+        let mut regions = highlighter.highlight_line(&line_with_nl, ps).ok()?;
         if let Some(last) = regions.last_mut() {
             if let Some(stripped) = last.1.strip_suffix('\n') {
                 last.1 = stripped;
@@ -545,7 +545,7 @@ fn render_inline<'a>(
             html.push_str(&format!(
                 "<a href=\"{}\" style=\"color:#576b95;text-decoration:none;\
                  word-break:break-all;overflow-wrap:anywhere;\">",
-                &link.url
+                link.url
             ));
             render_inline_children(node, html);
             html.push_str("</a>");
@@ -553,7 +553,7 @@ fn render_inline<'a>(
         NodeValue::Image(image) => {
             html.push_str(&format!(
                 "<img src=\"{}\" style=\"max-width:100%;\" />",
-                &image.url
+                image.url
             ));
         }
         NodeValue::Code(code) => {
