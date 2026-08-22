@@ -14,7 +14,7 @@ use commands::AppState;
 use config::AppConfig;
 use image_cache::ImageCache;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::Manager;
@@ -25,6 +25,11 @@ use tauri::Manager;
 /// 应用收到新文件请求，此时不应隐藏用户正在使用的 main 窗口。
 const FILE_LAUNCH_WINDOW_SECS: u64 = 3;
 static LAUNCH_TIME_SECS: AtomicU64 = AtomicU64::new(0);
+
+/// 是否在进程启动期收到过 `RunEvent::Opened` 文件请求。
+/// macOS 的启动 odoc 事件可能在 Tauri 创建静态 main 窗口（Ready/setup）之前
+/// 送达，此时 `Opened` 内无法隐藏尚不存在的 main，需要延迟到 setup 中处理。
+static OPENED_AT_LAUNCH: AtomicBool = AtomicBool::new(false);
 
 pub fn run() {
     let launch_time = SystemTime::now()
@@ -73,6 +78,15 @@ pub fn run() {
             commands::open_release_page,
         ])
         .setup(|app| {
+            // 文件启动时，macOS 的 odoc 事件先于静态 main 窗口创建送达（早于
+            // setup），`Opened` 内的 hide 无从生效；main 在此创建后立即隐藏，
+            // 避免与文件 doc 窗口形成「空白 main + 内容窗口」双窗口。
+            if OPENED_AT_LAUNCH.load(Ordering::Relaxed) {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.hide();
+                }
+            }
+
             tray::setup_tray(app.handle())?;
 
             Ok(())
@@ -97,7 +111,14 @@ pub fn run() {
         .run(|_app, _event| {
             #[cfg(target_os = "macos")]
             match _event {
-                tauri::RunEvent::Reopen { .. } => {
+                // 点击程序坞图标：若已有可见窗口（如用户正在编辑的 doc 窗口），
+                // macOS 会自动将其带到前台，此时再强制显示隐藏的 main 会造成
+                // 「空白 main + 内容窗口」双窗口；仅在无任何可见窗口时才恢复
+                // main（如用户关闭全部窗口后从程序坞/托盘重新唤起应用）。
+                tauri::RunEvent::Reopen {
+                    has_visible_windows: false,
+                    ..
+                } => {
                     tray::restore_main_window(_app);
                 }
                 // Fired when the user opens a file via Finder double-click or
@@ -113,9 +134,15 @@ pub fn run() {
                         let launch = LAUNCH_TIME_SECS.load(Ordering::Relaxed);
                         launch > 0 && now_secs().saturating_sub(launch) <= FILE_LAUNCH_WINDOW_SECS
                     };
-                    if is_file_launch && !urls.is_empty() {
-                        if let Some(window) = _app.get_webview_window("main") {
-                            let _ = window.hide();
+                    if !urls.is_empty() {
+                        // Opened 可能早于静态 main 窗口创建（早于 setup）送达，
+                        // 此时 main 尚不存在、hide 无从生效；先记录，由 setup
+                        // 在创建 main 后统一隐藏。
+                        OPENED_AT_LAUNCH.store(true, Ordering::Relaxed);
+                        if is_file_launch {
+                            if let Some(window) = _app.get_webview_window("main") {
+                                let _ = window.hide();
+                            }
                         }
                     }
                     for url in urls {
